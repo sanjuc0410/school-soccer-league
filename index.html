@@ -253,6 +253,13 @@ function resolveSide(t, m, side) {
   if (direct) return direct;
   var src = m[side + 'Src'];
   if (!src) return null;
+  if (src.type === 'RANK') {
+    // 리그 순위로 정해지는 경기(예: 결승 = 리그 1위 vs 2위): 리그 경기가 모두 끝나야 확정
+    var league = t.matches.filter(function (x) { return x.stage === 'league'; });
+    if (!league.length || league.some(function (x) { return x.status !== 'done'; })) return null;
+    var tb = standings(t, t.teams.map(function (x) { return x.id; }), 'league');
+    return tb[src.rank - 1] ? tb[src.rank - 1].id : null;
+  }
   var prev = t.matches.find(function (x) { return x.id === src.from; });
   if (!prev) return null;
   var r = koResult(t, prev);
@@ -263,6 +270,7 @@ function sideLabel(t, m, side) {
   var id = resolveSide(t, m, side);
   if (id) return teamName(t, id);
   var src = m[side + 'Src'];
+  if (src && src.type === 'RANK') return '리그 ' + src.rank + '위';
   if (src) {
     var prev = t.matches.find(function (x) { return x.id === src.from; });
     return prev ? (prev.label + ' ' + (src.type === 'W' ? '승자' : '패자')) : '미정';
@@ -490,6 +498,11 @@ function generateKnockout(t) {
   var seeds = koSeeds(t);
   var n = seeds.length;
   if (!isPow2(n)) { alert('토너먼트 진출 팀 수가 2, 4, 8, 16 중 하나여야 합니다. (현재 ' + n + '팀)\n대회 탭에서 설정을 확인하세요.'); return false; }
+  // 기존 토너먼트 경기에 적어 둔 날짜·시간·장소·심판·메모는 같은 이름의 경기로 옮겨 유지
+  var keep = {};
+  t.matches.forEach(function (m) {
+    if (m.stage === 'ko') keep[m.label] = { date: m.date, time: m.time, field: m.field, refs: m.refs, note: m.note };
+  });
   t.matches = t.matches.filter(function (m) { return m.stage !== 'ko'; });
   var order = seedOrder(n);
   var base = t.matches.reduce(function (mx, m) { return Math.max(mx, m.order); }, 0);
@@ -523,7 +536,21 @@ function generateKnockout(t) {
     }
     prevRound = next;
   }
-  created.forEach(function (m, k) { m.order = base + k + 1; m.no = base + k + 1; });
+  if (n === 2) {
+    created[0].label = '결승';
+    // 리그 1·2위 결승 + 리그 3·4위 결정전
+    if (t.settings.third && t.format === 'league_ko') {
+      var tb = standings(t, t.teams.map(function (x) { return x.id; }), 'league');
+      if (tb.length >= 4) {
+        created.unshift(newMatch({ stage: 'ko', round: 1, koSize: 0, label: '3·4위전', homeId: tb[2].id, awayId: tb[3].id }));
+      }
+    }
+  }
+  created.forEach(function (m, k) {
+    m.order = base + k + 1; m.no = base + k + 1;
+    var kp = keep[m.label];
+    if (kp) { m.date = kp.date; m.time = kp.time; m.field = kp.field; m.refs = kp.refs || m.refs; m.note = kp.note; }
+  });
   t.matches = t.matches.concat(created);
   return true;
 }
