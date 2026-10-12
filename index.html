@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>학교 축구 리그 관리</title>
+<style>
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --surface-2: #f0f2f5; --border: #dde1e6;
+  --text: #1c2430; --muted: #5f6b7a; --accent: #1f8a4c; --accent-weak: #e3f4ea;
+  --danger: #c53030; --danger-weak: #fde8e8; --warn: #b7791f; --warn-weak: #fdf3dc;
+  --info: #2b6cb0; --info-weak: #e6f0fb; --shadow: 0 1px 3px rgba(0,0,0,.08);
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12161c; --surface: #1b2129; --surface-2: #232b35; --border: #313b47;
+    --text: #e6eaef; --muted: #9aa6b4; --accent: #3fbf74; --accent-weak: #173326;
+    --danger: #f07171; --danger-weak: #3a1d1d; --warn: #e0b04f; --warn-weak: #3a2f17;
+    --info: #6aa8ec; --info-weak: #18283b; --shadow: 0 1px 3px rgba(0,0,0,.4);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  font-size: 15px; line-height: 1.5;
+}
+header.app {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 10;
+}
+header.app h1 { font-size: 18px; margin: 0; }
+header.app .tname { color: var(--accent); font-weight: 700; }
+header.app .saved { margin-left: auto; font-size: 12px; color: var(--muted); }
+nav.tabs { display: flex; gap: 4px; overflow-x: auto; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+nav.tabs button {
+  border: 0; background: transparent; color: var(--muted); padding: 8px 12px; border-radius: 8px;
+  font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+nav.tabs button.active { background: var(--accent-weak); color: var(--accent); }
+nav.tabs button:disabled { opacity: .35; cursor: not-allowed; }
+main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; box-shadow: var(--shadow); }
+.card h2 { font-size: 16px; margin: 0 0 12px; }
+.card h3 { font-size: 15px; margin: 16px 0 8px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
+input, select, textarea {
+  font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 10px; min-width: 0;
+}
+textarea { width: 100%; min-height: 120px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+input[type=checkbox] { width: 18px; height: 18px; }
+button.btn {
+  font: inherit; font-weight: 600; border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  padding: 7px 14px; border-radius: 8px; cursor: pointer;
+}
+button.btn:hover { filter: brightness(.97); }
+button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.btn.danger { background: var(--danger-weak); border-color: var(--danger); color: var(--danger); }
+button.btn.sm { padding: 3px 9px; font-size: 13px; }
+button.btn:disabled { opacity: .5; cursor: not-allowed; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.note { padding: 10px 12px; border-radius: 8px; background: var(--info-weak); color: var(--text); font-size: 14px; margin: 8px 0; }
+.note.warn { background: var(--warn-weak); }
+.note.danger { background: var(--danger-weak); }
+table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.t th, table.t td { padding: 7px 8px; border-bottom: 1px solid var(--border); text-align: center; }
+table.t th { background: var(--surface-2); font-size: 13px; color: var(--muted); }
+table.t td.l, table.t th.l { text-align: left; }
+table.t tr.q td { background: var(--accent-weak); }
+.scroll { overflow-x: auto; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--muted); }
+.badge.done { background: var(--accent-weak); color: var(--accent); }
+.badge.y { background: #f6d34a; color: #4a3b00; }
+.badge.r { background: #e53e3e; color: #fff; }
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,.25); vertical-align: -1px; margin-right: 4px; }
+.steps { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.steps span { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.steps span.ok { background: var(--accent-weak); color: var(--accent); font-weight: 700; }
+.match { display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; align-items: center; padding: 10px; border-bottom: 1px solid var(--border); }
+.match:last-child { border-bottom: 0; }
+.match .vs { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; }
+.match .vs .h { text-align: right; font-weight: 700; }
+.match .vs .a { text-align: left; font-weight: 700; }
+.match .sc { font-size: 18px; font-weight: 800; min-width: 64px; text-align: center; }
+.match .meta { font-size: 12px; color: var(--muted); }
+.teams { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.team { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.team header { padding: 8px 12px; border-bottom: 1px solid var(--border); font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+.team ul { list-style: none; margin: 0; padding: 6px 8px; }
+.team li { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 3px 4px; font-size: 14px; }
+.team li select { padding: 2px 4px; font-size: 12px; }
+dialog { border: 1px solid var(--border); border-radius: 14px; padding: 0; width: min(760px, 96vw); background: var(--surface); color: var(--text); }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+dialog .dh { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--surface); }
+dialog .db { padding: 16px; max-height: 75vh; overflow-y: auto; }
+.bigscore { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; text-align: center; margin-bottom: 12px; }
+.bigscore .n { font-size: 18px; font-weight: 800; }
+.bigscore .s { font-size: 40px; font-weight: 900; letter-spacing: 2px; }
+.events li { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--border); }
+.events { list-style: none; padding: 0; margin: 0 0 12px; }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { white-space: nowrap; border: 0; background: var(--surface); color: var(--text); padding: 7px 12px; font: inherit; cursor: pointer; }
+.seg button.on { background: var(--accent); color: #fff; font-weight: 700; }
+.bracket { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; }
+.bracket .col { min-width: 200px; display: flex; flex-direction: column; gap: 10px; justify-content: space-around; }
+.bracket .col h4 { margin: 0; font-size: 13px; color: var(--muted); text-align: center; }
+.bm { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
+.bm div { display: flex; justify-content: space-between; padding: 5px 10px; font-size: 14px; }
+.bm div + div { border-top: 1px solid var(--border); }
+.bm .w { font-weight: 800; color: var(--accent); }
+.podium { display: flex; gap: 12px; flex-wrap: wrap; }
+.podium div { flex: 1; min-width: 140px; text-align: center; padding: 12px; border-radius: var(--radius); background: var(--surface-2); }
+.podium b { display: block; font-size: 20px; }
+.hide { display: none !important; }
+@media (max-width: 640px) {
+  .match { grid-template-columns: 1fr; }
+  .bigscore .s { font-size: 30px; }
+}
+@media print {
+  header.app .saved, nav.tabs, .noprint, button { display: none !important; }
+  body { background: #fff; color: #000; font-size: 12px; }
+  .card { box-shadow: none; border: 1px solid #999; break-inside: avoid; }
+  main { max-width: none; padding: 0; }
+  table.t tr.q td { background: #eee; }
+}
+</style>
+</head>
+<body>
+<header class="app">
+  <h1>⚽ 학교 축구 리그 관리</h1>
+  <span class="tname" id="hdrName"></span>
+  <span class="saved" id="savedMark">이 브라우저에 자동 저장됩니다</span>
+</header>
+<nav class="tabs" id="tabs">
+  <button data-tab="setup">① 대회</button>
+  <button data-tab="players">② 선수·팀 편성</button>
+  <button data-tab="refs">③ 심판</button>
+  <button data-tab="matches">④ 경기 일정·기록</button>
+  <button data-tab="table">⑤ 순위표</button>
+  <button data-tab="stats">⑥ 개인 기록</button>
+  <button data-tab="data">💾 백업·인쇄</button>
+</nav>
+<main id="view"></main>
+
+<dialog id="matchDlg">
+  <div class="dh"><strong id="mdTitle">경기 기록</strong><button class="btn sm" data-act="close-dlg">닫기</button></div>
+  <div class="db" id="mdBody"></div>
+</dialog>
+
+<script>
+(function () {
+'use strict';
+
+/* =========================================================
+   저장소 (이 브라우저의 localStorage) - 서버 없음
+   ========================================================= */
+var STORE_KEY = 'schoolSoccerLeague.v1';
+var db = loadDb();
+var tab = 'setup';
+var openMatchId = null;
+var matchFilter = 'all';
+var eventDraft = { type: 'goal', side: 'home' };
+
+function loadDb() {
+  try {
+    var d = JSON.parse(localStorage.getItem(STORE_KEY));
+    if (d && Array.isArray(d.tournaments)) return d;
+  } catch (e) { /* ignore */ }
+  return { version: 1, tournaments: [], activeId: null, lastBackupAt: null };
+}
+function save() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(db));
+    var m = document.getElementById('savedMark');
+    m.textContent = '저장됨 ' + new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch (e) {
+    alert('저장에 실패했습니다. 브라우저 저장 공간을 확인하고, [백업] 탭에서 백업 파일을 내려받아 두세요.');
+  }
+}
+function uid(p) { return p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function T() { return db.tournaments.find(function (t) { return t.id === db.activeId; }) || null; }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function randInt(n) {
+  if (window.crypto && crypto.getRandomValues) {
+    var a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n;
+  }
+  return Math.floor(Math.random() * n);
+}
+function shuffle(arr) {
+  var a = arr.slice();
+  for (var i = a.length - 1; i > 0; i--) { var j = randInt(i + 1); var x = a[i]; a[i] = a[j]; a[j] = x; }
+  return a;
+}
+
+var FORMATS = {
+  league: '풀리그',
+  league_ko: '리그 후 토너먼트',
+  group_ko: '조별리그 + 토너먼트'
+};
+var TEAM_PRESETS = [
+  ['레드', '#e53e3e'], ['블루', '#3182ce'], ['그린', '#38a169'], ['옐로', '#ecc94b'],
+  ['퍼플', '#805ad5'], ['오렌지', '#dd6b20'], ['화이트', '#f7fafc'], ['블랙', '#2d3748'],
+  ['스카이', '#63b3ed'], ['핑크', '#ed64a6'], ['민트', '#4fd1c5'], ['브라운', '#975a16'],
+  ['네이비', '#2c5282'], ['라임', '#9ae6b4'], ['그레이', '#a0aec0'], ['골드', '#d69e2e']
+];
+var GROUP_NAMES = 'ABCDEFGH'.split('');
+var EV_LABEL = { goal: '⚽ 골', owngoal: '🔄 자책골', yellow: '🟨 경고', red: '🟥 퇴장' };
+var REF_ROLES = [['main', '주심'], ['a1', '부심1'], ['a2', '부심2']];
+
+/* =========================================================
+   조회 도우미
+   ========================================================= */
+function teamById(t, id) { return t.teams.find(function (x) { return x.id === id; }) || null; }
+function teamName(t, id) { var x = teamById(t, id); return x ? x.name : '미정'; }
+function teamDot(t, id) { var x = teamById(t, id); return x ? '<span class="dot" style="background:' + esc(x.color) + '"></span>' : ''; }
+function playerById(t, id) { return t.players.find(function (p) { return p.id === id; }) || null; }
+function playerLabel(p) {
+  if (!p) return '';
+  var info = [p.grade ? p.grade + '학년' : '', p.cls ? p.cls + '반' : '', p.num ? p.num + '번' : ''].filter(Boolean).join(' ');
+  return p.name + (info ? ' (' + info + ')' : '');
+}
+function evPlayerName(t, e, key) {
+  var id = e[key + 'Id'];
+  if (id) { var p = playerById(t, id); if (p) return p.name; }
+  return e[key + 'Name'] || '';
+}
+function refName(t, id) { var r = t.referees.find(function (x) { return x.id === id; }); return r ? r.name : ''; }
+function sortedMatches(t) { return t.matches.slice().sort(function (a, b) { return a.order - b.order; }); }
+
+function score(m) {
+  var h = 0, a = 0;
+  (m.events || []).forEach(function (e) {
+    if (e.type === 'goal') { if (e.side === 'home') h++; else a++; }
+    if (e.type === 'owngoal') { if (e.side === 'home') a++; else h++; } // 자책골은 상대 득점
+  });
+  return { h: h, a: a };
+}
+
+// 토너먼트 경기의 팀 결정 (이전 경기 승자/패자)
+function resolveSide(t, m, side) {
+  var direct = m[side + 'Id'];
+  if (direct) return direct;
+  var src = m[side + 'Src'];
+  if (!src) return null;
+  var prev = t.matches.find(function (x) { return x.id === src.from; });
+  if (!prev) return null;
+  var r = koResult(t, prev);
+  if (!r) return null;
+  return src.type === 'W' ? r.winner : r.loser;
+}
+function sideLabel(t, m, side) {
+  var id = resolveSide(t, m, side);
+  if (id) return teamName(t, id);
+  var src = m[side + 'Src'];
+  if (src) {
+    var prev = t.matches.find(function (x) { return x.id === src.from; });
+    return prev ? (prev.label + ' ' + (src.type === 'W' ? '승자' : '패자')) : '미정';
+  }
+  return '미정';
+}
+function koResult(t, m) {
+  if (m.status !== 'done') return null;
+  var h = resolveSide(t, m, 'home'), a = resolveSide(t, m, 'away');
+  if (!h || !a) return null;
+  var s = score(m);
+  var hw;
+  if (s.h !== s.a) hw = s.h > s.a;
+  else if (m.pk && m.pk.h !== '' && m.pk.a !== '' && Number(m.pk.h) !== Number(m.pk.a)) hw = Number(m.pk.h) > Number(m.pk.a);
+  else return null;
+  return { winner: hw ? h : a, loser: hw ? a : h };
+}
+
+/* =========================================================
+   순위 계산: 승점 → 골득실 → 다득점 → 페어플레이(경고1·퇴장3, 적을수록 위) → 팀 이름
+   ========================================================= */
+function standings(t, teamIds, stage, group) {
+  var rows = {};
+  teamIds.forEach(function (id) {
+    rows[id] = { id: id, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0, fp: 0 };
+  });
+  var S = t.settings;
+  t.matches.forEach(function (m) {
+    if (m.stage !== stage || m.status !== 'done') return;
+    if (group && m.group !== group) return;
+    var H = rows[m.homeId], A = rows[m.awayId];
+    if (!H || !A) return;
+    var s = score(m);
+    H.p++; A.p++;
+    H.gf += s.h; H.ga += s.a; A.gf += s.a; A.ga += s.h;
+    if (s.h > s.a) { H.w++; A.l++; H.pts += S.pw; A.pts += S.pl; }
+    else if (s.h < s.a) { A.w++; H.l++; A.pts += S.pw; H.pts += S.pl; }
+    else { H.d++; A.d++; H.pts += S.pd; A.pts += S.pd; }
+    (m.events || []).forEach(function (e) {
+      var r = e.side === 'home' ? H : A;
+      if (e.type === 'yellow') r.fp += 1;
+      if (e.type === 'red') r.fp += 3;
+    });
+  });
+  var list = Object.keys(rows).map(function (k) { var r = rows[k]; r.gd = r.gf - r.ga; return r; });
+  list.sort(function (a, b) {
+    return b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.fp - b.fp ||
+      teamName(t, a.id).localeCompare(teamName(t, b.id), 'ko');
+  });
+  return list;
+}
+
+/* =========================================================
+   개인 기록 & 출전정지 계산
+   ========================================================= */
+function playerKey(t, e, key) {
+  var id = e[key + 'Id'];
+  if (id) return id;
+  var n = e[key + 'Name'];
+  return n ? 'name:' + n : null;
+}
+function playerStats(t) {
+  var st = {};
+  function get(key, e, keyName) {
+    if (!st[key]) {
+      var p = e[keyName + 'Id'] ? playerById(t, e[keyName + 'Id']) : null;
+      st[key] = { key: key, name: p ? p.name : (e[keyName + 'Name'] || '?'), teamId: p ? p.teamId : null, sideTeam: null, g: 0, a: 0, og: 0, y: 0, r: 0 };
+    }
+    return st[key];
+  }
+  t.matches.forEach(function (m) {
+    if (m.status !== 'done') return;
+    (m.events || []).forEach(function (e) {
+      var k = playerKey(t, e, 'player');
+      if (k) {
+        var s = get(k, e, 'player');
+        if (!s.teamId) s.teamId = resolveSide(t, m, e.side);
+        if (e.type === 'goal') s.g++;
+        if (e.type === 'owngoal') s.og++;
+        if (e.type === 'yellow') s.y++;
+        if (e.type === 'red') s.r++;
+      }
+      if (e.type === 'goal') {
+        var ak = playerKey(t, e, 'assist');
+        if (ak) {
+          var as = get(ak, e, 'assist');
+          if (!as.teamId) as.teamId = resolveSide(t, m, e.side);
+          as.a++;
+        }
+      }
+    });
+  });
+  return Object.keys(st).map(function (k) { return st[k]; });
+}
+
+// 퇴장(또는 한 경기 경고 2회) → 다음 1경기 출전정지
+// 경고 누적이 기준(기본 2회)에 도달 → 다음 1경기 출전정지, 누적 초기화
+function suspensions(t) {
+  var limit = Number(t.settings.yellowLimit) || 0;
+  var ordered = sortedMatches(t);
+  var state = {}; // key -> {yc, ban, name, teamId, reason, history:[]}
+  var bannedIn = {}; // matchId -> [keys]
+  t.teams.forEach(function (team) {
+    ordered.forEach(function (m) {
+      var h = resolveSide(t, m, 'home'), a = resolveSide(t, m, 'away');
+      if (h !== team.id && a !== team.id) return;
+      var side = h === team.id ? 'home' : 'away';
+      // 이 경기 이전에 받은 징계 → 이 경기 출전정지
+      Object.keys(state).forEach(function (k) {
+        var s = state[k];
+        if (s.teamId === team.id && s.ban - s.upcoming > 0) {
+          (bannedIn[m.id] = bannedIn[m.id] || []).push({ key: k, name: s.name, reason: s.reason });
+          if (m.status === 'done') { s.ban--; s.served.push(m.label || ''); }
+          else s.upcoming++; // 아직 안 한 경기: 이 경기에서 정지가 소화될 예정
+        }
+      });
+      if (m.status !== 'done') return;
+      var perPlayer = {};
+      (m.events || []).forEach(function (e) {
+        if (e.side !== side || (e.type !== 'yellow' && e.type !== 'red')) return;
+        var k = playerKey(t, e, 'player'); if (!k) return;
+        var pp = perPlayer[k] = perPlayer[k] || { y: 0, r: 0, name: evPlayerName(t, e, 'player') };
+        if (e.type === 'yellow') pp.y++; else pp.r++;
+      });
+      Object.keys(perPlayer).forEach(function (k) {
+        var pp = perPlayer[k];
+        var s = state[k] = state[k] || { yc: 0, ban: 0, upcoming: 0, name: pp.name, teamId: team.id, reason: '', served: [] };
+        if (pp.r > 0 || pp.y >= 2) {
+          s.ban += 1; s.reason = '퇴장 (' + (m.label || '') + ')';
+        } else if (pp.y > 0) {
+          s.yc += pp.y;
+          if (limit > 0 && s.yc >= limit) { s.ban += 1; s.yc = 0; s.reason = '경고 누적 ' + limit + '회'; }
+        }
+      });
+    });
+  });
+  var pending = Object.keys(state).map(function (k) { var s = state[k]; s.key = k; return s; }).filter(function (s) { return s.ban > 0; });
+  return { pending: pending, bannedIn: bannedIn, all: state };
+}
+
+/* =========================================================
+   일정 생성
+   ========================================================= */
+function roundRobin(ids, legs) {
+  var arr = ids.slice();
+  if (arr.length % 2) arr.push(null);
+  var n = arr.length, rounds = [];
+  for (var r = 0; r < n - 1; r++) {
+    var pairs = [];
+    for (var i = 0; i < n / 2; i++) {
+      var a = arr[i], b = arr[n - 1 - i];
+      if (a && b) pairs.push(r % 2 ? [b, a] : [a, b]);
+    }
+    rounds.push(pairs);
+    arr.splice(1, 0, arr.pop());
+  }
+  if (legs === 2) {
+    var back = rounds.map(function (p) { return p.map(function (x) { return [x[1], x[0]]; }); });
+    rounds = rounds.concat(back);
+  }
+  return rounds;
+}
+function newMatch(o) {
+  return Object.assign({
+    id: uid('m'), order: 0, stage: 'league', group: null, round: 1, label: '',
+    homeId: null, awayId: null, homeSrc: null, awaySrc: null,
+    date: '', time: '', field: '', status: 'scheduled', events: [], pk: { h: '', a: '' },
+    refs: { main: '', a1: '', a2: '' }, note: ''
+  }, o);
+}
+function generateFirstStage(t) {
+  var legs = Number(t.settings.legs) || 1;
+  var list = [];
+  if (t.format === 'group_ko') {
+    var groups = groupNames(t);
+    var perGroup = groups.map(function (g) {
+      return roundRobin(t.teams.filter(function (x) { return x.group === g; }).map(function (x) { return x.id; }), legs);
+    });
+    var maxR = Math.max.apply(null, perGroup.map(function (r) { return r.length; }));
+    for (var r = 0; r < maxR; r++) {
+      groups.forEach(function (g, gi) {
+        (perGroup[gi][r] || []).forEach(function (p) {
+          list.push(newMatch({ stage: 'group', group: g, round: r + 1, label: g + '조 ' + (r + 1) + '라운드', homeId: p[0], awayId: p[1] }));
+        });
+      });
+    }
+  } else {
+    roundRobin(t.teams.map(function (x) { return x.id; }), legs).forEach(function (pairs, r) {
+      pairs.forEach(function (p) {
+        list.push(newMatch({ stage: 'league', round: r + 1, label: (r + 1) + '라운드', homeId: p[0], awayId: p[1] }));
+      });
+    });
+  }
+  list.forEach(function (m, i) { m.order = i + 1; m.no = i + 1; });
+  t.matches = list;
+}
+function seedOrder(n) {
+  var o = [1, 2];
+  while (o.length < n) {
+    var m = o.length * 2 + 1;
+    o = o.reduce(function (acc, s) { return acc.concat([s, m - s]); }, []);
+  }
+  return o;
+}
+function koRoundName(size) { return size === 2 ? '결승' : size === 4 ? '준결승' : size + '강'; }
+function isPow2(n) { return n >= 2 && (n & (n - 1)) === 0; }
+
+function koSeeds(t) {
+  if (t.format === 'league_ko') {
+    var n = Number(t.settings.koTeams);
+    return standings(t, t.teams.map(function (x) { return x.id; }), 'league').slice(0, n).map(function (r) { return r.id; });
+  }
+  var adv = Number(t.settings.advance);
+  var groups = groupNames(t);
+  var tables = groups.map(function (g) {
+    return standings(t, t.teams.filter(function (x) { return x.group === g; }).map(function (x) { return x.id; }), 'group', g);
+  });
+  var seeds = [];
+  for (var rank = 0; rank < adv; rank++) {
+    tables.forEach(function (tb) { if (tb[rank]) seeds.push(tb[rank].id); });
+  }
+  return seeds;
+}
+function generateKnockout(t) {
+  var seeds = koSeeds(t);
+  var n = seeds.length;
+  if (!isPow2(n)) { alert('토너먼트 진출 팀 수가 2, 4, 8, 16 중 하나여야 합니다. (현재 ' + n + '팀)\n대회 탭에서 설정을 확인하세요.'); return false; }
+  t.matches = t.matches.filter(function (m) { return m.stage !== 'ko'; });
+  var order = seedOrder(n);
+  var base = t.matches.reduce(function (mx, m) { return Math.max(mx, m.order); }, 0);
+  var created = [];
+  var prevRound = [];
+  for (var i = 0; i < n; i += 2) {
+    var m = newMatch({ stage: 'ko', round: 1, homeId: seeds[order[i] - 1], awayId: seeds[order[i + 1] - 1] });
+    prevRound.push(m); created.push(m);
+  }
+  var size = n, roundNo = 1;
+  prevRound.forEach(function (m, idx) { m.label = koRoundName(size) + ' ' + (idx + 1) + '경기'; m.koSize = size; });
+  var semis = size === 4 ? prevRound : null;
+  while (prevRound.length > 1) {
+    size = size / 2; roundNo++;
+    var next = [];
+    for (var j = 0; j < prevRound.length; j += 2) {
+      var nm = newMatch({
+        stage: 'ko', round: roundNo, koSize: size,
+        homeSrc: { from: prevRound[j].id, type: 'W' }, awaySrc: { from: prevRound[j + 1].id, type: 'W' }
+      });
+      nm.label = koRoundName(size) + (size > 2 ? ' ' + (j / 2 + 1) + '경기' : '');
+      next.push(nm); created.push(nm);
+    }
+    if (size === 4) semis = next;
+    if (size === 2 && t.settings.third && semis) {
+      var third = newMatch({
+        stage: 'ko', round: roundNo, koSize: 0, label: '3·4위전',
+        homeSrc: { from: semis[0].id, type: 'L' }, awaySrc: { from: semis[1].id, type: 'L' }
+      });
+      created.splice(created.length - 1, 0, third); // 결승 앞에 배치
+    }
+    prevRound = next;
+  }
+  created.forEach(function (m, k) { m.order = base + k + 1; m.no = base + k + 1; });
+  t.matches = t.matches.concat(created);
+  return true;
+}
+function groupNames(t) { return GROUP_NAMES.slice(0, Number(t.settings.groupCount) || 1); }
+
+/* =========================================================
+   대회 생성/설정
+   ========================================================= */
+function createTournament(f) {
+  var count = Math.max(2, Math.min(16, Number(f.teamCount) || 4));
+  var t = {
+    id: uid('t'), name: f.name || '축구 리그', createdAt: new Date().toISOString(), format: f.format,
+    settings: {
+      legs: Number(f.legs) || 1, koTeams: Number(f.koTeams) || 4, groupCount: Number(f.groupCount) || 2,
+      advance: Number(f.advance) || 2, third: !!f.third, yellowLimit: 2, pw: 3, pd: 1, pl: 0, minutes: ''
+    },
+    teams: [], players: [], referees: [], matches: [], teamsLocked: false
+  };
+  for (var i = 0; i < count; i++) {
+    var pr = TEAM_PRESETS[i % TEAM_PRESETS.length];
+    t.teams.push({ id: uid('tm'), name: pr[0], color: pr[1], group: null });
+  }
+  return t;
+}
+function validateFormat(t) {
+  var n = t.teams.length, S = t.settings;
+  if (t.format === 'league_ko') {
+    if (!isPow2(S.koTeams)) return '토너먼트 진출 팀 수는 2, 4, 8 중 하나로 정해 주세요.';
+    if (S.koTeams > n) return '토너먼트 진출 팀 수(' + S.koTeams + ')가 전체 팀 수(' + n + ')보다 많습니다.';
+  }
+  if (t.format === 'group_ko') {
+    if (S.groupCount < 2) return '조는 2개 이상이어야 합니다.';
+    if (n < S.groupCount * 2) return '팀 수가 부족합니다. 조마다 최소 2팀이 필요합니다.';
+    if (!isPow2(S.groupCount * S.advance)) return '조 수 × 조별 진출 팀 수가 2, 4, 8, 16 중 하나여야 합니다. (현재 ' + (S.groupCount * S.advance) + ')';
+    if (S.advance > Math.floor(n / S.groupCount)) return '조별 진출 팀 수가 조당 팀 수보다 많습니다.';
+  }
+  return '';
+}
+function setTeamCount(t, count) {
+  count = Math.max(2, Math.min(16, count));
+  while (t.teams.length < count) {
+    var pr = TEAM_PRESETS[t.teams.length % TEAM_PRESETS.length];
+    t.teams.push({ id: uid('tm'), name: pr[0], color: pr[1], group: null });
+  }
+  if (t.teams.length > count) {
+    var removed = t.teams.slice(count).map(function (x) { return x.id; });
+    t.teams = t.teams.slice(0, count);
+    t.players.forEach(function (p) { if (removed.indexOf(p.teamId) >= 0) p.teamId = null; });
+  }
+}
+
+/* =========================================================
+   선수 명단 붙여넣기 해석
+   "학년 반 번호 이름" / "학년,반,번호,이름" / "이름" 모두 허용
+   ========================================================= */
+function parseRoster(text) {
+  var out = [];
+  text.split(/\r?\n/).forEach(function (line) {
+    line = line.trim();
+    if (!line) return;
+    if (/이름|성명/.test(line) && !/\d/.test(line)) return; // 머리글 줄 건너뛰기
+    var parts = line.split(/[,\t;]|\s+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    var nums = [], names = [];
+    parts.forEach(function (p) {
+      var n = p.replace(/(학년|반|번)$/, '');
+      if (/^\d+$/.test(n)) nums.push(n); else names.push(p);
+    });
+    if (!names.length) return;
+    out.push({ grade: nums[0] || '', cls: nums[1] || '', num: nums[2] || '', name: names.join(' ') });
+  });
+  return out;
+}
+function csvCell(v) { v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function download(name, content, type) {
+  var blob = new Blob([content], { type: type || 'text/plain;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+
+/* =========================================================
+   화면 그리기
+   ========================================================= */
+var view = document.getElementById('view');
+
+function render() {
+  var t = T();
+  document.getElementById('hdrName').textContent = t ? '· ' + t.name + ' (' + FORMATS[t.format] + ')' : '';
+  document.querySelectorAll('#tabs button').forEach(function (b) {
+    b.classList.toggle('active', b.dataset.tab === tab);
+    b.disabled = !t && b.dataset.tab !== 'setup' && b.dataset.tab !== 'data';
+  });
+  if (!t && tab !== 'setup' && tab !== 'data') tab = 'setup';
+  var html = '';
+  if (tab === 'setup') html = viewSetup(t);
+  else if (tab === 'players') html = viewPlayers(t);
+  else if (tab === 'refs') html = viewRefs(t);
+  else if (tab === 'matches') html = viewMatches(t);
+  else if (tab === 'table') html = viewTable(t);
+  else if (tab === 'stats') html = viewStats(t);
+  else if (tab === 'data') html = viewData(t);
+  view.innerHTML = html;
+  if (openMatchId) renderMatchDlg();
+}
+
+function stepsBar(t) {
+  var hasPlayers = t.players.length > 0;
+  var assigned = hasPlayers && t.players.every(function (p) { return p.teamId; });
+  var hasMatches = t.matches.length > 0;
+  var anyDone = t.matches.some(function (m) { return m.status === 'done'; });
+  var s = [['대회 만들기', true], ['선수 명단', hasPlayers], ['팀 편성', assigned], ['심판 명단', t.referees.length > 0], ['일정 생성', hasMatches], ['경기 기록', anyDone]];
+  return '<div class="steps noprint">' + s.map(function (x) { return '<span class="' + (x[1] ? 'ok' : '') + '">' + (x[1] ? '✓ ' : '') + x[0] + '</span>'; }).join('') + '</div>';
+}
+
+/* ---------- ① 대회 ---------- */
+function viewSetup(t) {
+  var h = '';
+  if (t) h += stepsBar(t);
+  h += '<div class="card"><h2>대회 목록</h2>';
+  if (!db.tournaments.length) h += '<p class="muted">아직 만든 대회가 없습니다. 아래에서 새 대회를 만드세요.</p>';
+  else {
+    h += '<table class="t"><tr><th class="l">대회명</th><th>방식</th><th>팀</th><th>선수</th><th>경기</th><th></th></tr>';
+    db.tournaments.forEach(function (x) {
+      var done = x.matches.filter(function (m) { return m.status === 'done'; }).length;
+      h += '<tr' + (t && x.id === t.id ? ' class="q"' : '') + '><td class="l"><b>' + esc(x.name) + '</b></td><td>' + FORMATS[x.format] +
+        '</td><td>' + x.teams.length + '</td><td>' + x.players.length + '</td><td>' + done + '/' + x.matches.length +
+        '</td><td>' + (t && x.id === t.id ? '<span class="badge done">선택됨</span>' : '<button class="btn sm" data-act="select-t" data-id="' + x.id + '">열기</button>') + '</td></tr>';
+    });
+    h += '</table>';
+  }
+  h += '</div>';
+
+  h += '<div class="card"><h2>새 대회 만들기</h2><div class="grid">' +
+    '<label class="f">대회 이름<input id="nt-name" placeholder="예: 2026 점심시간 축구 리그"></label>' +
+    '<label class="f">경기 방식<select id="nt-format"><option value="league">풀리그</option><option value="league_ko">리그 후 토너먼트</option><option value="group_ko">조별리그 + 토너먼트</option></select></label>' +
+    '<label class="f">팀 수<input id="nt-teams" type="number" min="2" max="16" value="6"></label>' +
+    '<label class="f">리그 경기 횟수<select id="nt-legs"><option value="1">팀끼리 1번씩</option><option value="2">팀끼리 2번씩 (홈·원정)</option></select></label>' +
+    '<label class="f nt-ko">토너먼트 진출 팀 수 (리그 후 토너먼트)<select id="nt-koTeams"><option>2</option><option selected>4</option><option>8</option></select></label>' +
+    '<label class="f nt-grp">조 개수 (조별리그)<select id="nt-groupCount"><option>2</option><option>4</option><option>8</option></select></label>' +
+    '<label class="f nt-grp">조별 진출 팀 수<select id="nt-advance"><option>1</option><option selected>2</option></select></label>' +
+    '<label class="f">3·4위전<select id="nt-third"><option value="1">한다</option><option value="0">안 한다</option></select></label>' +
+    '</div><div class="row" style="margin-top:12px"><button class="btn primary" data-act="create-t">대회 만들기</button>' +
+    '<span class="muted small">팀 이름·색, 승점 등은 만든 뒤 아래에서 바꿀 수 있습니다.</span></div></div>';
+
+  if (t) {
+    var S = t.settings, locked = t.matches.length > 0;
+    h += '<div class="card"><h2>현재 대회 설정 · ' + esc(t.name) + '</h2>';
+    if (locked) h += '<div class="note">일정이 만들어진 뒤에는 팀 수와 경기 방식을 바꿀 수 없습니다. 바꾸려면 [④ 경기] 탭에서 일정을 삭제하세요.</div>';
+    h += '<div class="grid">' +
+      '<label class="f">대회 이름<input data-set="name" value="' + esc(t.name) + '"></label>' +
+      '<label class="f">경기 방식<select data-set="format"' + (locked ? ' disabled' : '') + '>' + Object.keys(FORMATS).map(function (k) { return '<option value="' + k + '"' + (k === t.format ? ' selected' : '') + '>' + FORMATS[k] + '</option>'; }).join('') + '</select></label>' +
+      '<label class="f">팀 수<input type="number" min="2" max="16" data-set="teamCount" value="' + t.teams.length + '"' + (locked ? ' disabled' : '') + '></label>' +
+      '<label class="f">리그 경기 횟수<select data-set="legs"' + (locked ? ' disabled' : '') + '><option value="1"' + (S.legs == 1 ? ' selected' : '') + '>팀끼리 1번씩</option><option value="2"' + (S.legs == 2 ? ' selected' : '') + '>팀끼리 2번씩</option></select></label>';
+    if (t.format === 'league_ko') h += '<label class="f">토너먼트 진출 팀 수<select data-set="koTeams">' + [2, 4, 8].map(function (n) { return '<option' + (S.koTeams == n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></label>';
+    if (t.format === 'group_ko') {
+      h += '<label class="f">조 개수<select data-set="groupCount"' + (locked ? ' disabled' : '') + '>' + [2, 4, 8].map(function (n) { return '<option' + (S.groupCount == n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></label>';
+      h += '<label class="f">조별 진출 팀 수<select data-set="advance">' + [1, 2].map(function (n) { return '<option' + (S.advance == n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></label>';
+    }
+    if (t.format !== 'league') h += '<label class="f">3·4위전<select data-set="third"><option value="1"' + (S.third ? ' selected' : '') + '>한다</option><option value="0"' + (!S.third ? ' selected' : '') + '>안 한다</option></select></label>';
+    h += '<label class="f">승점 (승 / 무 / 패)<span class="row"><input type="number" style="width:60px" data-set="pw" value="' + S.pw + '"><input type="number" style="width:60px" data-set="pd" value="' + S.pd + '"><input type="number" style="width:60px" data-set="pl" value="' + S.pl + '"></span></label>' +
+      '<label class="f">경고 누적 출전정지 기준<select data-set="yellowLimit">' + [[0, '적용 안 함'], [2, '2회'], [3, '3회']].map(function (o) { return '<option value="' + o[0] + '"' + (S.yellowLimit == o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></label>' +
+      '<label class="f">경기 시간 (메모용)<input data-set="minutes" placeholder="예: 전후반 각 10분" value="' + esc(S.minutes) + '"></label>' +
+      '</div>';
+    var err = validateFormat(t);
+    if (err) h += '<div class="note danger">⚠️ ' + esc(err) + '</div>';
+    h += '<h3>팀 이름과 색</h3><div class="grid">';
+    t.teams.forEach(function (tm) {
+      h += '<label class="f">' + teamDot(t, tm.id) + '팀<span class="row"><input data-team-name="' + tm.id + '" value="' + esc(tm.name) + '" style="flex:1"><input type="color" data-team-color="' + tm.id + '" value="' + esc(tm.color) + '" style="width:44px;padding:2px"></span></label>';
+    });
+    h += '</div><div class="note small">순위 결정: 승점 → 골득실 → 다득점 → 페어플레이(경고 1점·퇴장 3점, 적은 팀이 위) → 팀 이름 순</div>';
+    h += '<div class="row noprint" style="margin-top:12px"><button class="btn danger" data-act="delete-t">이 대회 삭제</button></div></div>';
+  }
+  return h;
+}
+
+/* ---------- ② 선수·팀 ---------- */
+function viewPlayers(t) {
+  var h = stepsBar(t);
+  h += '<div class="card"><h2>신청 선수 명단 (' + t.players.length + '명)</h2>' +
+    '<div class="note">학생들이 낸 신청서를 아래에 붙여넣으세요. 한 줄에 한 명씩, <b>학년 반 번호 이름</b> 순서입니다. 엑셀에서 열을 복사해 붙여넣어도 되고, 이름만 적어도 됩니다.<br>' +
+    '예) <code>2 3 15 학생A</code> · <code>3,1,7,학생B</code> · <code>학생C</code></div>' +
+    '<textarea id="rosterText" placeholder="1 2 3 학생A&#10;2 1 10 학생B"></textarea>' +
+    '<div class="row" style="margin-top:8px"><button class="btn primary" data-act="add-roster">명단 추가</button>' +
+    '<label class="btn" style="cursor:pointer">CSV 파일 불러오기<input type="file" accept=".csv,.txt" id="rosterFile" class="hide"></label>' +
+    '<button class="btn" data-act="roster-template">CSV 양식 받기</button>' +
+    (t.players.length ? '<button class="btn danger" data-act="clear-players">명단 전체 삭제</button>' : '') + '</div></div>';
+
+  var unassigned = t.players.filter(function (p) { return !p.teamId; });
+  h += '<div class="card"><h2>랜덤 팀 편성</h2>';
+  if (!t.players.length) h += '<p class="muted">먼저 선수 명단을 추가하세요.</p>';
+  else {
+    h += '<div class="row noprint">' +
+      '<button class="btn primary" data-act="random-teams"' + (t.teamsLocked ? ' disabled' : '') + '>🎲 전체 랜덤 편성</button>' +
+      (unassigned.length ? '<button class="btn" data-act="assign-rest"' + (t.teamsLocked ? ' disabled' : '') + '>미배정 ' + unassigned.length + '명만 배정</button>' : '') +
+      '<label class="row small"><input type="checkbox" data-act="lock-teams"' + (t.teamsLocked ? ' checked' : '') + '> 팀 확정 (실수로 다시 섞이지 않게 잠금)</label>' +
+      '<button class="btn" data-act="print">🖨️ 팀 명단 인쇄</button></div>' +
+      '<p class="muted small">모든 선수를 무작위로 섞은 뒤 팀마다 같은 인원이 되도록 나눕니다(최대 1명 차이). 나중에 신청한 학생은 [미배정만 배정]을 누르면 인원이 적은 팀부터 들어갑니다. 선수 옆 선택 상자로 직접 옮길 수도 있습니다.</p>';
+    h += '<div class="teams">';
+    var cols = t.teams.map(function (tm) { return { id: tm.id, name: tm.name }; });
+    if (unassigned.length) cols.push({ id: null, name: '미배정' });
+    cols.forEach(function (c) {
+      var ps = t.players.filter(function (p) { return (p.teamId || null) === c.id; })
+        .sort(function (a, b) { return (a.grade - b.grade) || (a.cls - b.cls) || (a.num - b.num) || a.name.localeCompare(b.name, 'ko'); });
+      h += '<div class="team"><header><span>' + (c.id ? teamDot(t, c.id) : '') + esc(c.name) + '</span><span class="badge">' + ps.length + '명</span></header><ul>';
+      ps.forEach(function (p) {
+        h += '<li><span>' + esc(playerLabel(p)) + '</span><span class="row noprint"><select data-move="' + p.id + '"' + (t.teamsLocked ? ' disabled' : '') + '>' +
+          '<option value="">미배정</option>' + t.teams.map(function (tm) { return '<option value="' + tm.id + '"' + (tm.id === p.teamId ? ' selected' : '') + '>' + esc(tm.name) + '</option>'; }).join('') +
+          '</select><button class="btn sm" data-act="del-player" data-id="' + p.id + '" title="삭제">✕</button></span></li>';
+      });
+      if (!ps.length) h += '<li class="muted">(없음)</li>';
+      h += '</ul></div>';
+    });
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+/* ---------- ③ 심판 ---------- */
+function viewRefs(t) {
+  var h = stepsBar(t);
+  var counts = {};
+  t.referees.forEach(function (r) { counts[r.id] = { main: 0, a1: 0, a2: 0 }; });
+  t.matches.forEach(function (m) { REF_ROLES.forEach(function (rr) { var id = m.refs[rr[0]]; if (id && counts[id]) counts[id][rr[0]]++; }); });
+  h += '<div class="card"><h2>심판 명단 (' + t.referees.length + '명)</h2>' +
+    '<div class="note">심판을 맡을 학생이나 선생님 이름을 한 줄에 한 명씩 붙여넣으세요. (학년 반 번호 이름 형식도 됩니다)</div>' +
+    '<textarea id="refText" placeholder="학생A&#10;학생B"></textarea>' +
+    '<div class="row" style="margin-top:8px"><button class="btn primary" data-act="add-refs">심판 추가</button></div>';
+  if (t.referees.length) {
+    h += '<h3>배정 현황</h3><div class="scroll"><table class="t"><tr><th class="l">이름</th><th>주심</th><th>부심</th><th>합계</th><th class="noprint"></th></tr>';
+    t.referees.forEach(function (r) {
+      var c = counts[r.id];
+      h += '<tr><td class="l">' + esc(r.name) + '</td><td>' + c.main + '</td><td>' + (c.a1 + c.a2) + '</td><td><b>' + (c.main + c.a1 + c.a2) + '</b></td><td class="noprint"><button class="btn sm" data-act="del-ref" data-id="' + r.id + '">삭제</button></td></tr>';
+    });
+    h += '</table></div>';
+  }
+  h += '</div>';
+  h += '<div class="card noprint"><h2>심판 자동 배정</h2><p class="small muted">아직 심판이 정해지지 않은 경기에, 배정 횟수가 적은 사람부터 고르게 넣습니다. 경기하는 팀의 선수와 이름이 같은 심판은 그 경기에서 제외합니다. 경기마다 직접 바꿀 수도 있습니다.</p>' +
+    '<div class="row"><label class="row small">배정 인원 <select id="refSlots"><option value="1">주심만</option><option value="3" selected>주심 + 부심 2명</option></select></label>' +
+    '<button class="btn primary" data-act="auto-refs"' + (t.referees.length && t.matches.length ? '' : ' disabled') + '>자동 배정</button>' +
+    '<button class="btn" data-act="clear-refs"' + (t.matches.length ? '' : ' disabled') + '>배정 모두 지우기</button></div>' +
+    (!t.matches.length ? '<p class="small muted">먼저 [④ 경기] 탭에서 일정을 만드세요.</p>' : '') + '</div>';
+  return h;
+}
+
+/* ---------- ④ 경기 ---------- */
+function viewMatches(t) {
+  var h = stepsBar(t);
+  var first = t.matches.filter(function (m) { return m.stage !== 'ko'; });
+  var ko = t.matches.filter(function (m) { return m.stage === 'ko'; });
+  var err = validateFormat(t);
+
+  if (!first.length) {
+    h += '<div class="card"><h2>일정 만들기</h2>';
+    if (err) h += '<div class="note danger">⚠️ ' + esc(err) + ' ([① 대회] 탭에서 설정을 바꿔 주세요.)</div>';
+    if (t.format === 'group_ko') {
+      var gn = groupNames(t);
+      var allSet = t.teams.every(function (x) { return gn.indexOf(x.group) >= 0; });
+      h += '<h3>조 편성</h3><div class="row"><button class="btn primary" data-act="draw-groups">🎲 조 추첨 (랜덤)</button><span class="small muted">또는 팀마다 직접 고르기</span></div>' +
+        '<div class="grid" style="margin-top:8px">' + t.teams.map(function (x) {
+          return '<label class="f">' + teamDot(t, x.id) + esc(x.name) + '<select data-group="' + x.id + '"><option value="">조 선택</option>' + gn.map(function (g) { return '<option' + (x.group === g ? ' selected' : '') + '>' + g + '</option>'; }).join('') + '</select></label>';
+        }).join('') + '</div>';
+      if (allSet) {
+        h += '<div class="row small" style="margin-top:8px">' + gn.map(function (g) {
+          return '<span class="badge">' + g + '조 ' + t.teams.filter(function (x) { return x.group === g; }).length + '팀</span>';
+        }).join(' ') + '</div>';
+      } else h += '<div class="note warn">모든 팀의 조를 정해야 일정을 만들 수 있습니다.</div>';
+      h += '<div class="row" style="margin-top:12px"><button class="btn primary" data-act="gen-schedule"' + (err || !allSet ? ' disabled' : '') + '>📅 조별리그 일정 만들기</button></div>';
+    } else {
+      var cnt = t.teams.length * (t.teams.length - 1) / 2 * (Number(t.settings.legs) || 1);
+      h += '<p>' + t.teams.length + '팀이 서로 ' + (t.settings.legs == 2 ? '두' : '한') + ' 번씩 경기합니다. 총 <b>' + cnt + '경기</b>가 라운드별로 만들어집니다.</p>' +
+        '<div class="row"><button class="btn primary" data-act="gen-schedule"' + (err ? ' disabled' : '') + '>📅 리그 일정 만들기</button></div>';
+    }
+    h += '</div>';
+    return h;
+  }
+
+  var done = t.matches.filter(function (m) { return m.status === 'done'; }).length;
+  h += '<div class="card noprint"><div class="row"><b>경기 ' + done + ' / ' + t.matches.length + ' 종료</b>' +
+    '<span class="seg">' + [['all', '전체'], ['todo', '남은 경기'], ['done', '끝난 경기']].map(function (f) {
+      return '<button data-act="filter" data-f="' + f[0] + '" class="' + (matchFilter === f[0] ? 'on' : '') + '">' + f[1] + '</button>';
+    }).join('') + '</span>' +
+    '<button class="btn" data-act="print">🖨️ 일정표 인쇄</button>' +
+    '<button class="btn danger" data-act="reset-schedule">일정 삭제</button></div></div>';
+
+  if (t.format !== 'league') {
+    var firstDone = first.every(function (m) { return m.status === 'done'; });
+    h += '<div class="card noprint"><h2>토너먼트</h2>';
+    if (!ko.length) {
+      h += firstDone ? '<div class="note">' + (t.format === 'group_ko' ? '조별리그' : '리그') + ' 경기가 모두 끝났습니다. 순위대로 토너먼트 대진을 만드세요.</div>'
+        : '<div class="note warn">' + (t.format === 'group_ko' ? '조별리그' : '리그') + ' 경기가 아직 남아 있습니다. 모두 끝난 뒤 만드는 것이 원칙이지만, 필요하면 현재 순위로 미리 만들 수 있습니다.</div>';
+      h += '<button class="btn primary" data-act="gen-ko">🏆 토너먼트 대진 만들기</button>';
+    } else {
+      h += '<button class="btn" data-act="gen-ko">토너먼트 대진 다시 만들기 (현재 순위 기준)</button>';
+    }
+    h += '</div>';
+  }
+
+  var susp = suspensions(t);
+  var groupsOrder = [];
+  sortedMatches(t).forEach(function (m) {
+    if (matchFilter === 'todo' && m.status === 'done') return;
+    if (matchFilter === 'done' && m.status !== 'done') return;
+    var key = m.stage === 'ko' ? '토너먼트' : (m.stage === 'group' ? m.round + '라운드 (조별리그)' : m.round + '라운드');
+    var g = groupsOrder.find(function (x) { return x.key === key; });
+    if (!g) { g = { key: key, items: [] }; groupsOrder.push(g); }
+    g.items.push(m);
+  });
+  groupsOrder.forEach(function (g) {
+    h += '<div class="card"><h2>' + esc(g.key) + '</h2>';
+    g.items.forEach(function (m) {
+      var s = score(m), dn = m.status === 'done';
+      var refs = REF_ROLES.map(function (rr) { var n = refName(t, m.refs[rr[0]]); return n ? rr[1] + ' ' + n : ''; }).filter(Boolean).join(' · ');
+      var hid = resolveSide(t, m, 'home'), aid = resolveSide(t, m, 'away');
+      var pk = dn && m.stage === 'ko' && s.h === s.a && m.pk && m.pk.h !== '' ? '승부차기 ' + esc(m.pk.h) + ':' + esc(m.pk.a) : '';
+      var bans = (susp.bannedIn[m.id] || []).length;
+      h += '<div class="match"><div><b>#' + m.no + '</b><div class="meta">' + esc(m.stage === 'ko' ? m.label : (m.group ? m.group + '조' : '')) + '</div></div>' +
+        '<div><div class="vs"><span class="h">' + (hid ? teamDot(t, hid) : '') + esc(sideLabel(t, m, 'home')) + '</span><span class="sc">' + (dn ? s.h + ' : ' + s.a : 'vs') + '</span><span class="a">' + (aid ? teamDot(t, aid) : '') + esc(sideLabel(t, m, 'away')) + '</span></div>' +
+        '<div class="meta" style="text-align:center">' + [
+          [m.date, m.time, m.field].filter(Boolean).map(esc).join(' · '),
+          refs ? '심판: ' + esc(refs) : '',
+          pk,
+          bans ? '<span style="color:var(--danger)">출전정지 ' + bans + '명</span>' : ''
+        ].filter(Boolean).join(' | ') + '</div></div>' +
+        '<div class="row"><span class="badge' + (dn ? ' done' : '') + '">' + (dn ? '종료' : '예정') + '</span><button class="btn sm noprint" data-act="open-match" data-id="' + m.id + '"' + (hid && aid ? '' : ' disabled') + '>기록</button></div></div>';
+    });
+    h += '</div>';
+  });
+  if (!groupsOrder.length) h += '<div class="card muted">해당하는 경기가 없습니다.</div>';
+  return h;
+}
+
+/* ---------- 경기 기록 창 ---------- */
+function teamPlayers(t, teamId) {
+  return t.players.filter(function (p) { return p.teamId === teamId; }).sort(function (a, b) { return a.name.localeCompare(b.name, 'ko'); });
+}
+function renderMatchDlg() {
+  var t = T(); if (!t) return;
+  var m = t.matches.find(function (x) { return x.id === openMatchId; });
+  var dlg = document.getElementById('matchDlg');
+  if (!m) { openMatchId = null; if (dlg.open) dlg.close(); return; }
+  var hid = resolveSide(t, m, 'home'), aid = resolveSide(t, m, 'away');
+  var s = score(m), dn = m.status === 'done';
+  document.getElementById('mdTitle').textContent = '#' + m.no + ' ' + (m.label || '') + (m.group ? ' (' + m.group + '조)' : '');
+  var susp = suspensions(t).bannedIn[m.id] || [];
+  var b = '';
+  b += '<div class="bigscore"><div class="n">' + teamDot(t, hid) + esc(teamName(t, hid)) + '<div class="small muted">홈</div></div><div class="s">' + s.h + ' : ' + s.a + '</div><div class="n">' + teamDot(t, aid) + esc(teamName(t, aid)) + '<div class="small muted">원정</div></div></div>';
+  if (susp.length) b += '<div class="note danger">🚫 이 경기 출전정지: ' + susp.map(function (x) { return esc(x.name) + ' (' + esc(x.reason) + ')'; }).join(', ') + '</div>';
+  b += '<div class="grid">' +
+    '<label class="f">날짜<input type="date" data-mset="date" value="' + esc(m.date) + '"></label>' +
+    '<label class="f">시간<input type="time" data-mset="time" value="' + esc(m.time) + '"></label>' +
+    '<label class="f">장소<input data-mset="field" placeholder="예: 운동장 A" value="' + esc(m.field) + '"></label></div>';
+  b += '<h3>심판</h3><div class="grid">' + REF_ROLES.map(function (rr) {
+    return '<label class="f">' + rr[1] + '<select data-mref="' + rr[0] + '"><option value="">-</option>' +
+      t.referees.map(function (r) { return '<option value="' + r.id + '"' + (m.refs[rr[0]] === r.id ? ' selected' : '') + '>' + esc(r.name) + '</option>'; }).join('') + '</select></label>';
+  }).join('') + '</div>';
+  if (!t.referees.length) b += '<p class="small muted">[③ 심판] 탭에서 심판 명단을 먼저 추가하세요.</p>';
+
+  b += '<h3>경기 기록</h3><ul class="events">';
+  var evs = (m.events || []).slice().sort(function (x, y) { return (Number(x.minute) || 999) - (Number(y.minute) || 999); });
+  if (!evs.length) b += '<li class="muted">아직 기록이 없습니다.</li>';
+  evs.forEach(function (e) {
+    var team = e.side === 'home' ? teamName(t, hid) : teamName(t, aid);
+    var as = e.type === 'goal' ? evPlayerName(t, e, 'assist') : '';
+    b += '<li><span style="min-width:44px" class="muted">' + (e.minute ? esc(e.minute) + "'" : '') + '</span><span>' + EV_LABEL[e.type] + '</span><b>' + esc(evPlayerName(t, e, 'player') || '(선수 미기록)') + '</b><span class="small muted">' + esc(team) + (as ? ' · 도움 ' + esc(as) : '') + '</span>' +
+      '<button class="btn sm" style="margin-left:auto" data-act="del-ev" data-id="' + e.id + '">삭제</button></li>';
+  });
+  b += '</ul>';
+
+  var side = eventDraft.side, sideTeam = side === 'home' ? hid : aid;
+  var ps = teamPlayers(t, sideTeam);
+  var opts = '<option value="">선택</option>' + ps.map(function (p) {
+    var banned = susp.some(function (x) { return x.key === p.id; });
+    return '<option value="' + p.id + '">' + esc(p.name) + (banned ? ' 🚫정지' : '') + '</option>';
+  }).join('') + '<option value="__name">명단에 없음 (직접 입력)</option>';
+  b += '<div class="card" style="background:var(--surface-2)"><div class="row" style="margin-bottom:8px">' +
+    '<span class="seg">' + Object.keys(EV_LABEL).map(function (k) { return '<button data-act="ev-type" data-v="' + k + '" class="' + (eventDraft.type === k ? 'on' : '') + '">' + EV_LABEL[k] + '</button>'; }).join('') + '</span></div>' +
+    '<div class="row" style="margin-bottom:8px"><span class="seg"><button data-act="ev-side" data-v="home" class="' + (side === 'home' ? 'on' : '') + '">' + esc(teamName(t, hid)) + '</button><button data-act="ev-side" data-v="away" class="' + (side === 'away' ? 'on' : '') + '">' + esc(teamName(t, aid)) + '</button></span>' +
+    (eventDraft.type === 'owngoal' ? '<span class="small muted">← 자책골을 넣은 선수의 팀 (점수는 상대 팀에 올라갑니다)</span>' : '') + '</div>' +
+    '<div class="grid">' +
+    '<label class="f">' + (eventDraft.type === 'goal' ? '득점 선수' : eventDraft.type === 'owngoal' ? '자책골 선수' : '받은 선수') + '<select id="ev-player">' + opts + '</select><input id="ev-player-name" class="hide" placeholder="이름 직접 입력"></label>' +
+    (eventDraft.type === 'goal' ? '<label class="f">도움 선수 (없으면 비워 두기)<select id="ev-assist">' + opts.replace('<option value="">선택</option>', '<option value="">없음</option>') + '</select><input id="ev-assist-name" class="hide" placeholder="이름 직접 입력"></label>' : '') +
+    '<label class="f">시간(분, 선택)<input id="ev-minute" type="number" min="0" max="200" placeholder="예: 12"></label></div>' +
+    '<div class="row" style="margin-top:10px"><button class="btn primary" data-act="add-ev">＋ 기록 추가</button></div></div>';
+
+  if (m.stage === 'ko') {
+    b += '<h3>승부차기 (토너먼트에서 비겼을 때)</h3><div class="row"><input type="number" min="0" style="width:70px" data-pk="h" value="' + esc(m.pk.h) + '"> : <input type="number" min="0" style="width:70px" data-pk="a" value="' + esc(m.pk.a) + '"></div>';
+  }
+  b += '<label class="f" style="margin-top:12px">메모<input data-mset="note" value="' + esc(m.note) + '" placeholder="특이사항"></label>';
+  b += '<div class="row" style="margin-top:16px">' + (dn ? '<button class="btn" data-act="reopen-match">경기 종료 취소 (다시 기록)</button>' : '<button class="btn primary" data-act="finish-match">✅ 경기 종료 · 결과 확정</button>') +
+    '<span class="small muted">결과는 [경기 종료]를 눌러야 순위표에 반영됩니다.</span></div>';
+  document.getElementById('mdBody').innerHTML = b;
+  if (!dlg.open) dlg.showModal();
+}
+
+/* ---------- ⑤ 순위표 ---------- */
+function tableHtml(t, rows, qualifyCount) {
+  var h = '<div class="scroll"><table class="t"><tr><th>순위</th><th class="l">팀</th><th>경기</th><th>승</th><th>무</th><th>패</th><th>득점</th><th>실점</th><th>득실</th><th>승점</th><th title="경고 1점, 퇴장 3점">페어플레이</th></tr>';
+  rows.forEach(function (r, i) {
+    h += '<tr' + (i < qualifyCount ? ' class="q"' : '') + '><td><b>' + (i + 1) + '</b></td><td class="l">' + teamDot(t, r.id) + esc(teamName(t, r.id)) + '</td><td>' + r.p + '</td><td>' + r.w + '</td><td>' + r.d + '</td><td>' + r.l + '</td><td>' + r.gf + '</td><td>' + r.ga + '</td><td>' + (r.gd > 0 ? '+' : '') + r.gd + '</td><td><b>' + r.pts + '</b></td><td>' + r.fp + '</td></tr>';
+  });
+  return h + '</table></div>';
+}
+function viewTable(t) {
+  var h = '<div class="card noprint"><div class="row"><button class="btn" data-act="print">🖨️ 순위표 인쇄</button><span class="small muted">순위 결정: 승점 → 골득실 → 다득점 → 페어플레이 → 팀 이름</span></div></div>';
+  var ko = t.matches.filter(function (m) { return m.stage === 'ko'; });
+  if (ko.length) {
+    var fin = ko.find(function (m) { return m.koSize === 2; });
+    var third = ko.find(function (m) { return m.koSize === 0; });
+    var fr = fin ? koResult(t, fin) : null, tr = third ? koResult(t, third) : null;
+    if (fr) {
+      h += '<div class="card"><h2>🏆 최종 결과</h2><div class="podium"><div>우승<b>' + teamDot(t, fr.winner) + esc(teamName(t, fr.winner)) + '</b></div><div>준우승<b>' + teamDot(t, fr.loser) + esc(teamName(t, fr.loser)) + '</b></div>' +
+        (tr ? '<div>3위<b>' + teamDot(t, tr.winner) + esc(teamName(t, tr.winner)) + '</b></div>' : '') + '</div></div>';
+    }
+    var rounds = {};
+    ko.forEach(function (m) { if (m.koSize === 0) return; (rounds[m.koSize] = rounds[m.koSize] || []).push(m); });
+    var sizes = Object.keys(rounds).map(Number).sort(function (a, b) { return b - a; });
+    h += '<div class="card"><h2>토너먼트 대진</h2><div class="bracket">';
+    sizes.forEach(function (sz) {
+      h += '<div class="col"><h4>' + koRoundName(sz) + '</h4>';
+      rounds[sz].sort(function (a, b) { return a.order - b.order; }).forEach(function (m) { h += bracketBox(t, m); });
+      h += '</div>';
+    });
+    if (third) h += '<div class="col"><h4>3·4위전</h4>' + bracketBox(t, third) + '</div>';
+    h += '</div></div>';
+  }
+  if (t.format === 'group_ko') {
+    groupNames(t).forEach(function (g) {
+      var ids = t.teams.filter(function (x) { return x.group === g; }).map(function (x) { return x.id; });
+      h += '<div class="card"><h2>' + g + '조 순위</h2>' + tableHtml(t, standings(t, ids, 'group', g), Number(t.settings.advance)) + '</div>';
+    });
+    h += '<p class="small muted">초록색 줄: 토너먼트 진출권</p>';
+  } else {
+    h += '<div class="card"><h2>리그 순위</h2>' + tableHtml(t, standings(t, t.teams.map(function (x) { return x.id; }), 'league'), t.format === 'league_ko' ? Number(t.settings.koTeams) : 1) + '</div>';
+  }
+  return h;
+}
+function bracketBox(t, m) {
+  var r = koResult(t, m), s = score(m), dn = m.status === 'done';
+  var hid = resolveSide(t, m, 'home'), aid = resolveSide(t, m, 'away');
+  var pk = dn && s.h === s.a && m.pk && m.pk.h !== '' ? [' (' + m.pk.h + ')', ' (' + m.pk.a + ')'] : ['', ''];
+  return '<div class="bm" data-act="open-match" data-id="' + m.id + '"><div class="' + (r && r.winner === hid ? 'w' : '') + '"><span>' + (hid ? teamDot(t, hid) : '') + esc(sideLabel(t, m, 'home')) + '</span><span>' + (dn ? s.h + pk[0] : '') + '</span></div>' +
+    '<div class="' + (r && r.winner === aid ? 'w' : '') + '"><span>' + (aid ? teamDot(t, aid) : '') + esc(sideLabel(t, m, 'away')) + '</span><span>' + (dn ? s.a + pk[1] : '') + '</span></div></div>';
+}
+
+/* ---------- ⑥ 개인 기록 ---------- */
+function viewStats(t) {
+  var st = playerStats(t);
+  var h = '<div class="card noprint"><button class="btn" data-act="print">🖨️ 개인 기록 인쇄</button> <span class="small muted">[경기 종료]된 경기만 집계합니다.</span></div>';
+  function rank(list, key, title, unit) {
+    var rows = list.filter(function (x) { return x[key] > 0; }).sort(function (a, b) { return b[key] - a[key] || a.name.localeCompare(b.name, 'ko'); });
+    var x = '<div class="card"><h2>' + title + '</h2>';
+    if (!rows.length) return x + '<p class="muted">기록이 없습니다.</p></div>';
+    x += '<div class="scroll"><table class="t"><tr><th>순위</th><th class="l">선수</th><th class="l">팀</th><th>' + unit + '</th></tr>';
+    var prev = null, rk = 0;
+    rows.slice(0, 20).forEach(function (r, i) {
+      if (r[key] !== prev) { rk = i + 1; prev = r[key]; }
+      x += '<tr><td>' + rk + '</td><td class="l"><b>' + esc(r.name) + '</b></td><td class="l">' + teamDot(t, r.teamId) + esc(teamName(t, r.teamId)) + '</td><td><b>' + r[key] + '</b></td></tr>';
+    });
+    return x + '</table></div></div>';
+  }
+  st.forEach(function (s) { s.ap = s.g + s.a; });
+  h += '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">' + rank(st, 'g', '⚽ 득점 순위', '골') + rank(st, 'a', '🅰️ 도움 순위', '도움') + rank(st, 'ap', '공격포인트 (골+도움)', '포인트') + '</div>';
+
+  var susp = suspensions(t);
+  h += '<div class="card"><h2>🚫 다음 경기 출전정지 대상</h2>';
+  if (!susp.pending.length) h += '<p class="muted">없습니다.</p>';
+  else h += '<table class="t"><tr><th class="l">선수</th><th class="l">팀</th><th class="l">사유</th></tr>' + susp.pending.map(function (s) {
+    return '<tr><td class="l"><b>' + esc(s.name) + '</b></td><td class="l">' + teamDot(t, s.teamId) + esc(teamName(t, s.teamId)) + '</td><td class="l">' + esc(s.reason) + '</td></tr>';
+  }).join('') + '</table>';
+  h += '<p class="small muted">퇴장(또는 한 경기 경고 2회) → 다음 1경기 출전정지. ' + (Number(t.settings.yellowLimit) ? '경고 ' + t.settings.yellowLimit + '회 누적 → 다음 1경기 출전정지 후 누적 초기화.' : '경고 누적 정지는 적용하지 않습니다.') + '</p></div>';
+
+  var cards = st.filter(function (s) { return s.y || s.r; }).sort(function (a, b) { return (b.r * 3 + b.y) - (a.r * 3 + a.y); });
+  h += '<div class="card"><h2>🟨🟥 경고·퇴장 기록</h2>';
+  if (!cards.length) h += '<p class="muted">없습니다.</p>';
+  else h += '<table class="t"><tr><th class="l">선수</th><th class="l">팀</th><th>경고</th><th>퇴장</th><th>현재 경고 누적</th></tr>' + cards.map(function (s) {
+    var cur = susp.all[s.key] ? susp.all[s.key].yc : 0;
+    return '<tr><td class="l">' + esc(s.name) + '</td><td class="l">' + teamDot(t, s.teamId) + esc(teamName(t, s.teamId)) + '</td><td>' + (s.y ? '<span class="badge y">' + s.y + '</span>' : 0) + '</td><td>' + (s.r ? '<span class="badge r">' + s.r + '</span>' : 0) + '</td><td>' + cur + '</td></tr>';
+  }).join('') + '</table>';
+  h += '</div>';
+
+  var refCount = {};
+  t.matches.forEach(function (m) { REF_ROLES.forEach(function (rr) { var id = m.refs[rr[0]]; if (!id) return; var c = refCount[id] = refCount[id] || { main: 0, sub: 0, done: 0 }; if (rr[0] === 'main') c.main++; else c.sub++; if (m.status === 'done') c.done++; }); });
+  h += '<div class="card"><h2>🧑‍⚖️ 심판 활동 기록</h2>';
+  if (!t.referees.length) h += '<p class="muted">심판 명단이 없습니다.</p>';
+  else h += '<table class="t"><tr><th class="l">심판</th><th>주심</th><th>부심</th><th>진행 완료</th></tr>' + t.referees.map(function (r) {
+    var c = refCount[r.id] || { main: 0, sub: 0, done: 0 };
+    return '<tr><td class="l">' + esc(r.name) + '</td><td>' + c.main + '</td><td>' + c.sub + '</td><td>' + c.done + '</td></tr>';
+  }).join('') + '</table>';
+  h += '</div>';
+  return h;
+}
+
+/* ---------- 백업 ---------- */
+function viewData(t) {
+  var last = db.lastBackupAt ? new Date(db.lastBackupAt).toLocaleString('ko-KR') : '없음';
+  var h = '<div class="card"><h2>💾 백업과 복원</h2>' +
+    '<div class="note warn">이 프로그램은 서버 없이 <b>지금 쓰는 컴퓨터의 이 브라우저</b>에만 저장됩니다. 브라우저 기록(사이트 데이터)을 지우거나 다른 컴퓨터에서 열면 기록이 보이지 않습니다. <b>경기가 끝날 때마다 백업 파일을 내려받아 두세요.</b></div>' +
+    '<p>마지막 백업: <b>' + esc(last) + '</b></p>' +
+    '<div class="row"><button class="btn primary" data-act="export">⬇️ 전체 백업 파일 내려받기</button>' +
+    '<label class="btn" style="cursor:pointer">⬆️ 백업 파일 불러오기<input type="file" accept=".json" id="importFile" class="hide"></label></div>' +
+    '<p class="small muted">백업 파일을 다른 컴퓨터에서 불러오면 그대로 이어서 쓸 수 있습니다. 백업 파일에는 학생 이름이 들어 있으니 학교 컴퓨터나 업무용 저장소에만 보관하세요.</p></div>';
+  if (t) {
+    h += '<div class="card"><h2>📄 내보내기 · 인쇄</h2><div class="row">' +
+      '<button class="btn" data-act="export-teams">팀 명단 CSV (엑셀)</button>' +
+      '<button class="btn" data-act="export-results">경기 결과 CSV (엑셀)</button>' +
+      '<button class="btn" data-act="export-scorers">개인 기록 CSV (엑셀)</button></div>' +
+      '<p class="small muted">인쇄는 각 탭의 🖨️ 버튼을 누르면 그 화면만 인쇄됩니다.</p></div>';
+  }
+  h += '<div class="card"><h2>⚠️ 전체 초기화</h2><p class="small muted">이 브라우저에 저장된 모든 대회를 지웁니다. 먼저 백업하세요.</p><button class="btn danger" data-act="wipe">모든 데이터 지우기</button></div>';
+  return h;
+}
+
+/* =========================================================
+   동작 처리
+   ========================================================= */
+function readFileText(file, cb) {
+  var r = new FileReader();
+  r.onload = function () {
+    var text = r.result;
+    // 엑셀 CSV(EUC-KR)로 저장된 경우 글자가 깨지면 다시 읽기
+    if (/�/.test(text)) {
+      var r2 = new FileReader();
+      r2.onload = function () { cb(r2.result); };
+      r2.readAsText(file, 'euc-kr');
+    } else cb(text);
+  };
+  r.readAsText(file, 'utf-8');
+}
+function addPlayers(t, list) {
+  var added = 0, dup = 0;
+  list.forEach(function (p) {
+    var exists = t.players.some(function (q) { return q.name === p.name && String(q.grade) === String(p.grade) && String(q.cls) === String(p.cls) && String(q.num) === String(p.num); });
+    if (exists) { dup++; return; }
+    t.players.push({ id: uid('p'), name: p.name, grade: p.grade, cls: p.cls, num: p.num, teamId: null });
+    added++;
+  });
+  return { added: added, dup: dup };
+}
+function smallestTeam(t) {
+  var counts = t.teams.map(function (tm) { return { id: tm.id, n: t.players.filter(function (p) { return p.teamId === tm.id; }).length }; });
+  var min = Math.min.apply(null, counts.map(function (c) { return c.n; }));
+  var cands = counts.filter(function (c) { return c.n === min; });
+  return cands[randInt(cands.length)].id;
+}
+
+function autoRefs(t, slots) {
+  var roles = slots === 1 ? ['main'] : ['main', 'a1', 'a2'];
+  var count = {};
+  t.referees.forEach(function (r) { count[r.id] = 0; });
+  t.matches.forEach(function (m) { roles.forEach(function (k) { if (m.refs[k] && count[m.refs[k]] != null) count[m.refs[k]]++; }); });
+  var filled = 0;
+  sortedMatches(t).forEach(function (m) {
+    if (m.status === 'done') return;
+    var playing = [resolveSide(t, m, 'home'), resolveSide(t, m, 'away')];
+    var playerNames = t.players.filter(function (p) { return playing.indexOf(p.teamId) >= 0; }).map(function (p) { return p.name; });
+    roles.forEach(function (k) {
+      if (m.refs[k]) return;
+      var used = roles.map(function (x) { return m.refs[x]; });
+      var cands = t.referees.filter(function (r) { return used.indexOf(r.id) < 0 && playerNames.indexOf(r.name) < 0; });
+      if (!cands.length) return;
+      var min = Math.min.apply(null, cands.map(function (r) { return count[r.id]; }));
+      var pool = cands.filter(function (r) { return count[r.id] === min; });
+      var pick = pool[randInt(pool.length)];
+      m.refs[k] = pick.id; count[pick.id]++; filled++;
+    });
+  });
+  return filled;
+}
+
+document.addEventListener('click', function (ev) {
+  var el = ev.target.closest('[data-act], #tabs button');
+  if (!el) return;
+  if (el.matches('#tabs button')) { if (!el.disabled) { tab = el.dataset.tab; render(); window.scrollTo(0, 0); } return; }
+  var act = el.dataset.act, t = T();
+  switch (act) {
+    case 'create-t': {
+      var f = {
+        name: document.getElementById('nt-name').value.trim(), format: document.getElementById('nt-format').value,
+        teamCount: document.getElementById('nt-teams').value, legs: document.getElementById('nt-legs').value,
+        koTeams: document.getElementById('nt-koTeams').value, groupCount: document.getElementById('nt-groupCount').value,
+        advance: document.getElementById('nt-advance').value, third: document.getElementById('nt-third').value === '1'
+      };
+      var nt = createTournament(f);
+      var err = validateFormat(nt);
+      if (err && !confirm(err + '\n\n일단 만들고 아래 설정에서 고치시겠습니까?')) return;
+      db.tournaments.push(nt); db.activeId = nt.id; save(); render();
+      break;
+    }
+    case 'select-t': db.activeId = el.dataset.id; save(); render(); break;
+    case 'delete-t':
+      if (!confirm('"' + t.name + '" 대회를 삭제합니다. 되돌릴 수 없습니다. 계속할까요?')) return;
+      db.tournaments = db.tournaments.filter(function (x) { return x.id !== t.id; });
+      db.activeId = db.tournaments.length ? db.tournaments[0].id : null; save(); render(); break;
+    case 'add-roster': {
+      var list = parseRoster(document.getElementById('rosterText').value);
+      if (!list.length) { alert('추가할 이름이 없습니다.'); return; }
+      var r = addPlayers(t, list); save(); render();
+      alert(r.added + '명을 추가했습니다.' + (r.dup ? ' (이미 있는 ' + r.dup + '명은 건너뜀)' : ''));
+      break;
+    }
+    case 'roster-template':
+      download('선수신청_양식.csv', '﻿학년,반,번호,이름\n1,1,1,학생A\n2,3,15,학생B\n', 'text/csv;charset=utf-8'); break;
+    case 'clear-players':
+      if (!confirm('선수 명단 ' + t.players.length + '명을 모두 지울까요? (경기 기록의 이름은 사라질 수 있습니다)')) return;
+      t.players = []; save(); render(); break;
+    case 'del-player':
+      if (!confirm('이 선수를 명단에서 지울까요?')) return;
+      t.players = t.players.filter(function (p) { return p.id !== el.dataset.id; }); save(); render(); break;
+    case 'random-teams': {
+      if (t.players.some(function (p) { return p.teamId; }) && !confirm('지금 팀 편성을 모두 지우고 다시 랜덤으로 나눕니다. 계속할까요?')) return;
+      var order = shuffle(t.players);
+      var teamOrder = shuffle(t.teams.map(function (x) { return x.id; }));
+      order.forEach(function (p, i) { p.teamId = teamOrder[i % teamOrder.length]; });
+      save(); render(); break;
+    }
+    case 'assign-rest':
+      shuffle(t.players.filter(function (p) { return !p.teamId; })).forEach(function (p) { p.teamId = smallestTeam(t); });
+      save(); render(); break;
+    case 'lock-teams': t.teamsLocked = el.checked; save(); render(); break;
+    case 'add-refs': {
+      var refs = parseRoster(document.getElementById('refText').value);
+      var added = 0;
+      refs.forEach(function (r) {
+        if (t.referees.some(function (x) { return x.name === r.name; })) return;
+        t.referees.push({ id: uid('r'), name: r.name }); added++;
+      });
+      save(); render(); alert(added + '명을 심판 명단에 추가했습니다.'); break;
+    }
+    case 'del-ref':
+      if (!confirm('이 심판을 명단에서 지울까요? 배정된 경기에서도 빠집니다.')) return;
+      t.referees = t.referees.filter(function (r) { return r.id !== el.dataset.id; });
+      t.matches.forEach(function (m) { REF_ROLES.forEach(function (rr) { if (m.refs[rr[0]] === el.dataset.id) m.refs[rr[0]] = ''; }); });
+      save(); render(); break;
+    case 'auto-refs': {
+      var n = autoRefs(t, Number(document.getElementById('refSlots').value));
+      save(); render(); alert(n + '자리에 심판을 배정했습니다.'); break;
+    }
+    case 'clear-refs':
+      if (!confirm('끝나지 않은 경기의 심판 배정을 모두 지울까요?')) return;
+      t.matches.forEach(function (m) { if (m.status !== 'done') m.refs = { main: '', a1: '', a2: '' }; }); save(); render(); break;
+    case 'draw-groups': {
+      var gn = groupNames(t);
+      shuffle(t.teams).forEach(function (x, i) { x.group = gn[i % gn.length]; });
+      save(); render(); break;
+    }
+    case 'gen-schedule': {
+      var e = validateFormat(t); if (e) { alert(e); return; }
+      if (!t.players.length && !confirm('아직 선수 명단이 없습니다. 그래도 일정을 만들까요?')) return;
+      generateFirstStage(t); save(); render(); break;
+    }
+    case 'reset-schedule':
+      if (!confirm('모든 경기 일정과 기록(득점·경고 등)을 지웁니다. 되돌릴 수 없습니다. 계속할까요?')) return;
+      if (t.matches.some(function (m) { return m.status === 'done'; }) && !confirm('끝난 경기 기록도 모두 사라집니다. 정말 지울까요?')) return;
+      t.matches = []; save(); render(); break;
+    case 'gen-ko': {
+      var exists = t.matches.some(function (m) { return m.stage === 'ko'; });
+      if (exists && !confirm('기존 토너먼트 대진과 기록을 지우고 현재 순위로 다시 만듭니다. 계속할까요?')) return;
+      if (generateKnockout(t)) { save(); render(); }
+      break;
+    }
+    case 'filter': matchFilter = el.dataset.f; render(); break;
+    case 'open-match': openMatchId = el.dataset.id; eventDraft = { type: 'goal', side: 'home' }; renderMatchDlg(); break;
+    case 'close-dlg': openMatchId = null; document.getElementById('matchDlg').close(); render(); break;
+    case 'ev-type': eventDraft.type = el.dataset.v; renderMatchDlg(); break;
+    case 'ev-side': eventDraft.side = el.dataset.v; renderMatchDlg(); break;
+    case 'add-ev': {
+      var m = t.matches.find(function (x) { return x.id === openMatchId; });
+      var pv = document.getElementById('ev-player').value;
+      var pName = document.getElementById('ev-player-name').value.trim();
+      var hasPlayer = pv && (pv !== '__name' || pName);
+      if (!hasPlayer) {
+        if (eventDraft.type === 'yellow' || eventDraft.type === 'red') { alert('경고·퇴장은 선수를 골라야 합니다.'); return; }
+        if (!confirm('선수를 고르지 않았습니다. 선수 없이 점수만 기록할까요?')) return;
+      }
+      var evt = { id: uid('e'), type: eventDraft.type, side: eventDraft.side, minute: document.getElementById('ev-minute').value };
+      if (pv && pv !== '__name') evt.playerId = pv; else if (pName) evt.playerName = pName;
+      var asel = document.getElementById('ev-assist');
+      if (asel && asel.value) {
+        if (asel.value === '__name') { var an = document.getElementById('ev-assist-name').value.trim(); if (an) evt.assistName = an; }
+        else if (asel.value !== pv) evt.assistId = asel.value;
+      }
+      m.events.push(evt); save(); renderMatchDlg(); break;
+    }
+    case 'del-ev': {
+      var mm = t.matches.find(function (x) { return x.id === openMatchId; });
+      mm.events = mm.events.filter(function (e) { return e.id !== el.dataset.id; }); save(); renderMatchDlg(); break;
+    }
+    case 'finish-match': {
+      var fm = t.matches.find(function (x) { return x.id === openMatchId; });
+      var sc = score(fm);
+      if (fm.stage === 'ko' && sc.h === sc.a && (fm.pk.h === '' || fm.pk.a === '' || Number(fm.pk.h) === Number(fm.pk.a))) {
+        alert('토너먼트 경기가 비겼습니다. 승부차기 결과를 입력해 주세요.'); return;
+      }
+      if (!confirm('최종 스코어 ' + sc.h + ' : ' + sc.a + ' 로 경기를 종료할까요?')) return;
+      fm.status = 'done'; save(); renderMatchDlg(); render(); break;
+    }
+    case 'reopen-match': {
+      var rm = t.matches.find(function (x) { return x.id === openMatchId; });
+      var dependents = t.matches.filter(function (x) { return (x.homeSrc && x.homeSrc.from === rm.id) || (x.awaySrc && x.awaySrc.from === rm.id); });
+      if (dependents.some(function (x) { return x.status === 'done'; })) { alert('이 경기 결과로 이어진 다음 토너먼트 경기가 이미 끝났습니다. 그 경기부터 먼저 종료를 취소하세요.'); return; }
+      rm.status = 'scheduled'; save(); renderMatchDlg(); render(); break;
+    }
+    case 'print': window.print(); break;
+    case 'export': {
+      db.lastBackupAt = new Date().toISOString(); save();
+      var stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+      download('축구리그_백업_' + stamp + '.json', JSON.stringify(db, null, 2), 'application/json');
+      render(); break;
+    }
+    case 'export-teams': {
+      var rows = ['﻿팀,학년,반,번호,이름'];
+      t.players.slice().sort(function (a, b) { return teamName(t, a.teamId).localeCompare(teamName(t, b.teamId), 'ko') || a.name.localeCompare(b.name, 'ko'); })
+        .forEach(function (p) { rows.push([p.teamId ? teamName(t, p.teamId) : '미배정', p.grade, p.cls, p.num, p.name].map(csvCell).join(',')); });
+      download(t.name + '_팀명단.csv', rows.join('\n'), 'text/csv;charset=utf-8'); break;
+    }
+    case 'export-results': {
+      var rr = ['﻿번호,구분,날짜,시간,장소,홈,홈점수,원정점수,원정,승부차기,상태,주심,부심1,부심2'];
+      sortedMatches(t).forEach(function (m) {
+        var s2 = score(m), d2 = m.status === 'done';
+        rr.push([m.no, m.label, m.date, m.time, m.field, sideLabel(t, m, 'home'), d2 ? s2.h : '', d2 ? s2.a : '', sideLabel(t, m, 'away'),
+          m.pk && m.pk.h !== '' ? m.pk.h + ':' + m.pk.a : '', d2 ? '종료' : '예정', refName(t, m.refs.main), refName(t, m.refs.a1), refName(t, m.refs.a2)].map(csvCell).join(','));
+      });
+      download(t.name + '_경기결과.csv', rr.join('\n'), 'text/csv;charset=utf-8'); break;
+    }
+    case 'export-scorers': {
+      var ps2 = ['﻿선수,팀,골,도움,자책골,경고,퇴장'];
+      playerStats(t).sort(function (a, b) { return b.g - a.g || b.a - a.a; }).forEach(function (s) {
+        ps2.push([s.name, teamName(t, s.teamId), s.g, s.a, s.og, s.y, s.r].map(csvCell).join(','));
+      });
+      download(t.name + '_개인기록.csv', ps2.join('\n'), 'text/csv;charset=utf-8'); break;
+    }
+    case 'wipe':
+      if (!confirm('이 브라우저의 모든 대회 기록을 지웁니다. 백업 파일을 받아 두셨나요?')) return;
+      if (prompt('정말 지우려면 "삭제" 라고 입력하세요.') !== '삭제') return;
+      db = { version: 1, tournaments: [], activeId: null, lastBackupAt: null }; save(); tab = 'setup'; render(); break;
+  }
+});
+
+document.addEventListener('change', function (ev) {
+  var el = ev.target, t = T();
+  if (el.id === 'rosterFile' && el.files[0]) {
+    readFileText(el.files[0], function (text) {
+      var list = parseRoster(text);
+      var r = addPlayers(t, list); save(); render();
+      alert(r.added + '명을 추가했습니다.' + (r.dup ? ' (이미 있는 ' + r.dup + '명은 건너뜀)' : ''));
+    });
+    return;
+  }
+  if (el.id === 'importFile' && el.files[0]) {
+    readFileText(el.files[0], function (text) {
+      var data;
+      try { data = JSON.parse(text); } catch (e) { alert('백업 파일을 읽을 수 없습니다.'); return; }
+      if (!data || !Array.isArray(data.tournaments)) { alert('이 프로그램의 백업 파일이 아닙니다.'); return; }
+      var mode = db.tournaments.length ? confirm('[확인] 현재 데이터에 합치기 (같은 대회는 백업 내용으로 교체)\n[취소] 현재 데이터를 모두 지우고 백업으로 바꾸기') : true;
+      if (mode) {
+        data.tournaments.forEach(function (bt) {
+          var i = db.tournaments.findIndex(function (x) { return x.id === bt.id; });
+          if (i >= 0) db.tournaments[i] = bt; else db.tournaments.push(bt);
+        });
+        if (!db.activeId) db.activeId = data.activeId || (db.tournaments[0] && db.tournaments[0].id);
+      } else {
+        if (!confirm('현재 데이터를 지우고 백업 파일로 바꿉니다. 계속할까요?')) return;
+        db = data;
+      }
+      save(); render(); alert('백업 파일을 불러왔습니다. (대회 ' + data.tournaments.length + '개)');
+    });
+    return;
+  }
+  if (!t) return;
+  if (el.dataset.set) {
+    var k = el.dataset.set, v = el.value;
+    if (k === 'name') t.name = v.trim() || t.name;
+    else if (k === 'format') { t.format = v; }
+    else if (k === 'teamCount') setTeamCount(t, Number(v));
+    else if (k === 'third') t.settings.third = v === '1';
+    else if (k === 'minutes') t.settings.minutes = v;
+    else t.settings[k] = Number(v);
+    if (k === 'groupCount') t.teams.forEach(function (x) { x.group = null; });
+    save(); render(); return;
+  }
+  if (el.dataset.teamName) { var tm = teamById(t, el.dataset.teamName); tm.name = el.value.trim() || tm.name; save(); render(); return; }
+  if (el.dataset.teamColor) { teamById(t, el.dataset.teamColor).color = el.value; save(); render(); return; }
+  if (el.dataset.move !== undefined && el.dataset.move) { var p = playerById(t, el.dataset.move); p.teamId = el.value || null; save(); render(); return; }
+  if (el.dataset.group) { teamById(t, el.dataset.group).group = el.value || null; save(); render(); return; }
+  var m = openMatchId ? t.matches.find(function (x) { return x.id === openMatchId; }) : null;
+  if (m && el.dataset.mset) { m[el.dataset.mset] = el.value; save(); return; }
+  if (m && el.dataset.mref) { m.refs[el.dataset.mref] = el.value; save(); renderMatchDlg(); return; }
+  if (m && el.dataset.pk) { m.pk[el.dataset.pk] = el.value; save(); return; }
+  if (el.id === 'ev-player' || el.id === 'ev-assist') {
+    var nameInput = document.getElementById(el.id + '-name');
+    if (nameInput) nameInput.classList.toggle('hide', el.value !== '__name');
+  }
+});
+
+document.getElementById('matchDlg').addEventListener('close', function () {
+  if (openMatchId) { openMatchId = null; render(); }
+});
+window.addEventListener('beforeunload', function () { save(); });
+
+render();
+})();
+</script>
+</body>
+</html>
