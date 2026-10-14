@@ -1350,7 +1350,6 @@ document.addEventListener('change', function (ev) {
 document.getElementById('matchDlg').addEventListener('close', function () {
   if (openMatchId) { openMatchId = null; render(); }
 });
-window.addEventListener('beforeunload', function () { save(); });
 
 render();
 })();
