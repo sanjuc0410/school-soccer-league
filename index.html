@@ -55,15 +55,15 @@ input, select, textarea {
 }
 textarea { width: 100%; min-height: 120px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
 input[type=checkbox] { width: 18px; height: 18px; }
-button.btn {
+.btn { display: inline-block;
   font: inherit; font-weight: 600; border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
   padding: 7px 14px; border-radius: 8px; cursor: pointer;
 }
-button.btn:hover { filter: brightness(.97); }
-button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-button.btn.danger { background: var(--danger-weak); border-color: var(--danger); color: var(--danger); }
-button.btn.sm { padding: 3px 9px; font-size: 13px; }
-button.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn:hover { filter: brightness(.97); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger { background: var(--danger-weak); border-color: var(--danger); color: var(--danger); }
+.btn.sm { padding: 3px 9px; font-size: 13px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
 .note { padding: 10px 12px; border-radius: 8px; background: var(--info-weak); color: var(--text); font-size: 14px; margin: 8px 0; }
@@ -145,7 +145,7 @@ dialog .db { padding: 16px; max-height: 75vh; overflow-y: auto; }
   <button data-tab="matches">④ 경기 일정·기록</button>
   <button data-tab="table">⑤ 순위표</button>
   <button data-tab="stats">⑥ 개인 기록</button>
-  <button data-tab="data">💾 백업·인쇄</button>
+  <button data-tab="data">💾 백업·연결</button>
 </nav>
 <main id="view"></main>
 
@@ -178,6 +178,7 @@ function loadDb() {
 function save() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(db));
+    if (syncOn()) { onLocalSave(); return; }
     var m = document.getElementById('savedMark');
     m.textContent = '저장됨 ' + new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   } catch (e) {
@@ -217,6 +218,307 @@ var TEAM_PRESETS = [
 var GROUP_NAMES = 'ABCDEFGH'.split('');
 var EV_LABEL = { goal: '⚽ 골', owngoal: '🔄 자책골', yellow: '🟨 경고', red: '🟥 퇴장' };
 var REF_ROLES = [['main', '주심'], ['a1', '부심1'], ['a2', '부심2']];
+
+/* =========================================================
+   구글 시트 온라인 연결 (PC·휴대폰 함께 쓰기)
+   - 연결 주소와 접속 코드는 코드에 넣지 않고, 이 기기 브라우저에만 저장합니다.
+   - 서로 다른 기기에서 동시에 고친 내용은 항목(경기·선수·기록) 단위로 자동으로 합칩니다.
+   ========================================================= */
+var SYNC_KEY = 'schoolSoccerLeague.sync';
+var SYNC_BASE_KEY = 'schoolSoccerLeague.syncBase';
+var sync = loadSyncCfg();      // { url, code, version, dirty, lastSyncAt }
+var syncBusy = false, syncAgain = false, syncTimer = null, retryTimer = null, pendingRender = false;
+var syncStatus = { kind: sync.url ? 'idle' : 'off', msg: '' };
+
+function loadSyncCfg() {
+  try { var c = JSON.parse(localStorage.getItem(SYNC_KEY)); if (c && typeof c === 'object') return c; } catch (e) { /* ignore */ }
+  return { url: '', code: '', version: null, dirty: false, lastSyncAt: null };
+}
+function saveSyncCfg() { try { localStorage.setItem(SYNC_KEY, JSON.stringify(sync)); } catch (e) { /* ignore */ } }
+function loadBase() { try { return JSON.parse(localStorage.getItem(SYNC_BASE_KEY)); } catch (e) { return null; } }
+function saveBase(d) { try { localStorage.setItem(SYNC_BASE_KEY, JSON.stringify(d)); } catch (e) { /* ignore */ } }
+function syncOn() { return !!(sync.url && sync.code); }
+
+function setSyncStatus(kind, msg) {
+  syncStatus = { kind: kind, msg: msg || '' };
+  var m = document.getElementById('savedMark');
+  if (!m) return;
+  var time = function (d) { return new Date(d).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }); };
+  var text = {
+    off: '이 브라우저에 자동 저장됩니다',
+    idle: '☁️ 온라인 연결됨',
+    busy: '⏳ 온라인 저장 중…',
+    ok: '☁️ 온라인 저장됨 ' + (sync.lastSyncAt ? time(sync.lastSyncAt) : ''),
+    offline: '⚠️ 인터넷 연결 안 됨 · 이 기기에 저장됨 (자동 재시도)',
+    error: '⚠️ ' + (msg || '온라인 저장 오류')
+  }[kind];
+  m.textContent = text;
+  m.style.color = kind === 'offline' || kind === 'error' ? 'var(--danger)' : '';
+}
+
+// ----- 3방향 합치기: 마지막으로 맞춘 기록(base)과 비교해 각자 바뀐 부분만 반영 -----
+function same(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+function isIdArr(x) { return Array.isArray(x) && x.every(function (e) { return e && typeof e === 'object' && 'id' in e; }); }
+function isObj(x) { return x && typeof x === 'object' && !Array.isArray(x); }
+function merge3(base, local, remote, st) {
+  if (same(local, remote)) return local;
+  if (same(base, local)) return remote;
+  if (same(base, remote)) return local;
+  if (isIdArr(local) && isIdArr(remote) && (base == null || isIdArr(base))) {
+    var B = {}, L = {}, R = {};
+    (base || []).forEach(function (e) { B[e.id] = e; });
+    local.forEach(function (e) { L[e.id] = e; });
+    remote.forEach(function (e) { R[e.id] = e; });
+    var ids = remote.map(function (e) { return e.id; });
+    local.forEach(function (e) { if (!R[e.id]) ids.push(e.id); });
+    var out = [];
+    ids.forEach(function (id) {
+      var b = B[id], l = L[id], r = R[id];
+      if (l && r) out.push(merge3(b, l, r, st));
+      else if (l) { if (!b) out.push(l); else if (!same(b, l)) { st.c++; out.push(l); } }   // 상대가 지웠지만 내가 고침 → 유지
+      else if (r) { if (!b) out.push(r); else if (!same(b, r)) { st.c++; out.push(r); } }
+    });
+    return out;
+  }
+  if (isObj(local) && isObj(remote) && (base == null || isObj(base))) {
+    var o = {}, keys = {};
+    Object.keys(local).concat(Object.keys(remote)).forEach(function (k) { keys[k] = 1; });
+    Object.keys(keys).forEach(function (k) {
+      var v = merge3(base ? base[k] : undefined, local[k], remote[k], st);
+      if (v !== undefined) o[k] = v;
+    });
+    return o;
+  }
+  st.c++;
+  return local; // 같은 칸을 양쪽에서 고친 경우: 지금 쓰는 기기 내용 우선
+}
+
+function syncPost(body) {
+  var controller = window.AbortController ? new AbortController() : null;
+  var timer = setTimeout(function () { if (controller) controller.abort(); }, 30000);
+  return fetch(sync.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // 구글 스크립트 호출 시 사전 요청(CORS) 방지
+    body: JSON.stringify(Object.assign({ code: sync.code }, body)),
+    signal: controller ? controller.signal : undefined,
+    redirect: 'follow'
+  }).then(function (r) {
+    clearTimeout(timer);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }, function (e) { clearTimeout(timer); throw e; });
+}
+function errText(code) {
+  return { bad_code: '접속 코드가 맞지 않습니다', not_configured: '시트에서 접속 코드를 아직 만들지 않았습니다', busy: '다른 기기가 저장 중입니다', bad_request: '요청 형식 오류' }[code] || code;
+}
+
+// 받은 온라인 기록을 이 기기에 적용 (이 기기에서 고르고 있던 대회는 유지)
+function applyRemote(data, version) {
+  var keepActive = db.activeId;
+  db = data && Array.isArray(data.tournaments) ? data : { version: 1, tournaments: [], activeId: null, lastBackupAt: null };
+  if (keepActive && db.tournaments.some(function (t) { return t.id === keepActive; })) db.activeId = keepActive;
+  else if (!db.tournaments.some(function (t) { return t.id === db.activeId; })) db.activeId = db.tournaments.length ? db.tournaments[0].id : null;
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); } catch (e) { /* ignore */ }
+  saveBase(data);
+  sync.version = version;
+  saveSyncCfg();
+  safeRender();
+}
+// 입력 중에는 화면을 새로 그리지 않고, 입력이 끝나면 그림
+function safeRender() {
+  var a = document.activeElement;
+  if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'checkbox') { pendingRender = true; return; }
+  pendingRender = false;
+  render();
+}
+document.addEventListener('focusout', function () { if (pendingRender) setTimeout(safeRender, 50); });
+
+function scheduleRetry() {
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(function () { syncNow(); }, 15000);
+}
+
+// 이 기기에서 저장할 때마다 호출
+function onLocalSave() {
+  if (!syncOn()) return;
+  sync.dirty = true; saveSyncCfg();
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncNow, 1200);
+}
+
+// 온라인과 맞추기: 바뀐 것이 있으면 올리고, 다른 기기에서 바뀐 것은 받아옴
+function syncNow(opts) {
+  if (!syncOn()) return Promise.resolve();
+  if (syncBusy) { syncAgain = true; return Promise.resolve(); }
+  syncBusy = true;
+  setSyncStatus('busy');
+  var attempt = 0;
+  function finish(kind, msg) {
+    syncBusy = false;
+    if (kind === 'ok') { sync.lastSyncAt = new Date().toISOString(); saveSyncCfg(); }
+    setSyncStatus(kind, msg);
+    if (kind === 'offline' || (kind === 'error' && msg === errText('busy'))) scheduleRetry();
+    if (syncAgain) { syncAgain = false; setTimeout(syncNow, 300); }
+  }
+  function mergeAndPush(remoteData, remoteVersion) {
+    var st = { c: 0 };
+    var base = loadBase();
+    var local = JSON.parse(JSON.stringify(db));
+    var merged = (remoteData && Array.isArray(remoteData.tournaments)) ? merge3(base, local, remoteData, st) : local;
+    merged.activeId = db.activeId;
+    db = merged;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); } catch (e) { /* ignore */ }
+    saveBase(remoteData);
+    sync.version = remoteVersion;
+    saveSyncCfg();
+    safeRender();
+    if (st.c && !(opts && opts.quiet)) {
+      setTimeout(function () { alert('다른 기기에서 같은 항목을 동시에 고친 곳이 ' + st.c + '군데 있어, 이 기기의 내용으로 저장했습니다.\n순위표와 경기 기록을 한 번 확인해 주세요.'); }, 50);
+    }
+    return push();
+  }
+  function push() {
+    attempt++;
+    if (attempt > 4) { finish('error', '저장 충돌이 반복됩니다. 잠시 후 다시 시도하세요'); return; }
+    var sentSnapshot = JSON.stringify(db);
+    return syncPost({ action: 'write', baseVersion: sync.version || 0, data: db }).then(function (res) {
+      if (res.ok) {
+        sync.version = res.version;
+        saveBase(JSON.parse(sentSnapshot));
+        sync.dirty = JSON.stringify(db) !== sentSnapshot; // 보내는 사이 또 바뀌었으면 한 번 더
+        saveSyncCfg();
+        if (sync.dirty) syncAgain = true;
+        finish('ok');
+      } else if (res.error === 'conflict') {
+        return mergeAndPush(res.data, res.version);
+      } else finish('error', errText(res.error));
+    });
+  }
+  return syncPost({ action: 'read' }).then(function (res) {
+    if (!res.ok) { finish('error', errText(res.error)); return; }
+    if (res.version === sync.version) {
+      if (sync.dirty) return push();
+      finish('ok'); return;
+    }
+    if (!sync.dirty) { applyRemote(res.data, res.version); finish('ok'); return; }
+    return mergeAndPush(res.data, res.version);
+  }).catch(function () { finish('offline'); });
+}
+
+// 처음 연결: 온라인 기록과 이 기기 기록을 어떻게 할지 고름
+function connectSync(url, code) {
+  sync.url = url; sync.code = code; sync.version = null; sync.dirty = false;
+  setSyncStatus('busy');
+  return syncPost({ action: 'read' }).then(function (res) {
+    if (!res.ok) { sync.url = ''; sync.code = ''; saveSyncCfg(); setSyncStatus('off'); alert('연결하지 못했습니다: ' + errText(res.error)); return; }
+    var remoteHas = res.data && Array.isArray(res.data.tournaments) && res.data.tournaments.length > 0;
+    var localHas = db.tournaments.length > 0;
+    saveSyncCfg();
+    if (!remoteHas) {
+      // 시트가 비어 있으면 이 기기 기록을 올림
+      sync.version = res.version; sync.dirty = true; saveBase(null); saveSyncCfg();
+      return syncNow().then(function () { alert('구글 시트에 연결했습니다.' + (localHas ? ' 이 기기의 대회 기록을 시트에 올렸습니다.' : '')); render(); });
+    }
+    if (!localHas) {
+      applyRemote(res.data, res.version);
+      sync.lastSyncAt = new Date().toISOString(); saveSyncCfg(); setSyncStatus('ok');
+      alert('구글 시트에 연결했습니다. 온라인 기록(대회 ' + res.data.tournaments.length + '개)을 불러왔습니다.');
+      return;
+    }
+    var merge = confirm('구글 시트와 이 기기 모두에 기록이 있습니다.\n\n[확인] 두 기록 합치기 (추천: 대회별로 합침)\n[취소] 이 기기 기록은 버리고 온라인 기록만 사용');
+    if (merge) {
+      sync.version = res.version; sync.dirty = true; saveBase(null); saveSyncCfg();
+      var st = { c: 0 };
+      var merged = merge3(null, JSON.parse(JSON.stringify(db)), res.data, st);
+      merged.activeId = db.activeId;
+      db = merged;
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); } catch (e) { /* ignore */ }
+      saveBase(res.data);
+      return syncNow({ quiet: true }).then(function () { render(); alert('구글 시트에 연결하고 두 기록을 합쳤습니다.'); });
+    }
+    applyRemote(res.data, res.version);
+    sync.lastSyncAt = new Date().toISOString(); saveSyncCfg(); setSyncStatus('ok');
+    alert('구글 시트에 연결했습니다. 온라인 기록을 불러왔습니다.');
+  }).catch(function () {
+    sync.url = ''; sync.code = ''; saveSyncCfg(); setSyncStatus('off');
+    alert('연결하지 못했습니다. 웹 앱 주소가 맞는지, 배포할 때 "액세스 권한: 모든 사용자"로 했는지 확인해 주세요.');
+  });
+}
+function disconnectSync() {
+  sync = { url: '', code: '', version: null, dirty: false, lastSyncAt: null };
+  saveSyncCfg(); try { localStorage.removeItem(SYNC_BASE_KEY); } catch (e) { /* ignore */ }
+  setSyncStatus('off');
+}
+function validSyncUrl(u) {
+  return /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\/?$/.test(u) || /^https:\/\/script\.google\.com\/a\/macros\/[\w.-]+\/s\/[\w-]+\/exec\/?$/.test(u) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(u);
+}
+// 휴대폰 연결 링크: 주소창 # 뒤에만 담겨서 웹 서버로는 전송되지 않음
+function makeSyncLink() {
+  var payload = btoa(unescape(encodeURIComponent(JSON.stringify({ u: sync.url, c: sync.code }))));
+  return location.href.split('#')[0] + '#connect=' + payload;
+}
+function readSyncLink() {
+  var m = /#connect=([A-Za-z0-9+/=]+)/.exec(location.hash);
+  if (!m) return null;
+  history.replaceState(null, '', location.href.split('#')[0]);
+  try { var o = JSON.parse(decodeURIComponent(escape(atob(m[1])))); return o && o.u && o.c ? o : null; } catch (e) { return null; }
+}
+
+function viewSyncCard() {
+  var h = '<div class="card"><h2>☁️ 구글 시트 연결 (PC·휴대폰 함께 쓰기)</h2>';
+  if (!syncOn()) {
+    h += '<p class="small">구글 시트에 연결하면 PC와 휴대폰 어디서 고쳐도 같은 기록이 보입니다. 설정 방법은 README의 <b>구글 시트 연결하기</b>를 보세요.</p>' +
+      '<div class="grid"><label class="f">웹 앱 주소 (https://script.google.com/macros/s/…/exec)<input id="syncUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off"></label>' +
+      '<label class="f">접속 코드 (시트 메뉴 ⚽ 축구리그 → 접속 코드 확인)<input id="syncCode" placeholder="예: ABCD23EFGH" autocomplete="off" style="text-transform:uppercase"></label></div>' +
+      '<div class="row" style="margin-top:10px"><button class="btn primary" data-act="sync-connect">연결하기</button></div>';
+  } else {
+    h += '<p>상태: <b>' + esc(document.getElementById('savedMark').textContent) + '</b></p>' +
+      '<p class="small muted">연결된 주소: ' + esc(sync.url.replace(/(\/s\/.{6}).*(\/exec)/, '$1…$2')) + '</p>' +
+      '<div class="row"><button class="btn primary" data-act="sync-now">🔄 지금 맞추기</button>' +
+      '<button class="btn" data-act="sync-link">📱 휴대폰 연결 링크 복사</button>' +
+      '<button class="btn danger" data-act="sync-off">연결 해제 (이 기기만)</button></div>' +
+      '<p class="small muted">휴대폰 연결 링크를 휴대폰으로 보내 열면 주소와 접속 코드를 따로 입력하지 않아도 연결됩니다. 링크에 접속 코드가 들어 있으니 선생님 본인에게만 보내세요.</p>' +
+      '<p class="small muted">인터넷이 끊겨도 이 기기에 먼저 저장되고, 연결되면 자동으로 올라갑니다. 다른 기기에서 고친 내용은 20초마다 확인해서 받아옵니다.</p>';
+  }
+  return h + '</div>';
+}
+
+function handleSyncAction(act) {
+  if (act === 'sync-connect') {
+    var u = document.getElementById('syncUrl').value.trim();
+    var c = document.getElementById('syncCode').value.trim().toUpperCase();
+    if (!validSyncUrl(u)) { alert('웹 앱 주소 형식이 맞지 않습니다.\nhttps://script.google.com/macros/s/…/exec 형태인지 확인하세요.'); return true; }
+    if (c.length < 6) { alert('접속 코드를 입력하세요.'); return true; }
+    connectSync(u, c).then(function () { render(); });
+    return true;
+  }
+  if (act === 'sync-now') { syncNow().then(render); return true; }
+  if (act === 'sync-off') {
+    if (confirm('이 기기의 구글 시트 연결을 해제합니다. (이 기기와 시트의 기록은 그대로 남습니다)')) { disconnectSync(); render(); }
+    return true;
+  }
+  if (act === 'sync-link') {
+    var link = makeSyncLink();
+    var done = function () { alert('휴대폰 연결 링크를 복사했습니다.\n카카오톡 "나와의 채팅" 등으로 휴대폰에 보내 여세요.'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, function () { prompt('아래 링크를 복사하세요.', link); });
+    else prompt('아래 링크를 복사하세요.', link);
+    return true;
+  }
+  return false;
+}
+
+function startSync() {
+  var linked = readSyncLink();
+  if (linked) {
+    if (syncOn() && linked.u === sync.url && linked.c === sync.code) { /* 이미 같은 연결 */ }
+    else if (confirm('이 링크로 구글 시트 연결을 설정할까요?')) { connectSync(linked.u, linked.c).then(render); }
+  }
+  setSyncStatus(syncOn() ? 'idle' : 'off');
+  if (syncOn()) syncNow();
+  setInterval(function () { if (syncOn() && document.visibilityState === 'visible' && !syncBusy) syncNow({ quiet: true }); }, 20000);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && syncOn()) syncNow(); });
+  window.addEventListener('online', function () { if (syncOn()) syncNow(); });
+}
 
 /* =========================================================
    조회 도우미
@@ -1048,8 +1350,9 @@ function viewStats(t) {
 /* ---------- 백업 ---------- */
 function viewData(t) {
   var last = db.lastBackupAt ? new Date(db.lastBackupAt).toLocaleString('ko-KR') : '없음';
-  var h = '<div class="card"><h2>💾 백업과 복원</h2>' +
-    '<div class="note warn">이 프로그램은 서버 없이 <b>지금 쓰는 컴퓨터의 이 브라우저</b>에만 저장됩니다. 브라우저 기록(사이트 데이터)을 지우거나 다른 컴퓨터에서 열면 기록이 보이지 않습니다. <b>경기가 끝날 때마다 백업 파일을 내려받아 두세요.</b></div>' +
+  var h = viewSyncCard() + '<div class="card"><h2>💾 백업과 복원</h2>' +
+    (syncOn() ? '<div class="note">구글 시트에 연결되어 있어 기록이 온라인에도 저장됩니다. 그래도 대회가 끝나면 백업 파일을 한 번 받아 두세요.</div>'
+      : '<div class="note warn">지금은 <b>이 기기의 이 브라우저</b>에만 저장됩니다. 브라우저 기록(사이트 데이터)을 지우거나 다른 기기에서 열면 기록이 보이지 않습니다. <b>경기가 끝날 때마다 백업 파일을 내려받거나, 위에서 구글 시트에 연결하세요.</b></div>') +
     '<p>마지막 백업: <b>' + esc(last) + '</b></p>' +
     '<div class="row"><button class="btn primary" data-act="export">⬇️ 전체 백업 파일 내려받기</button>' +
     '<label class="btn" style="cursor:pointer">⬆️ 백업 파일 불러오기<input type="file" accept=".json" id="importFile" class="hide"></label></div>' +
@@ -1127,6 +1430,7 @@ document.addEventListener('click', function (ev) {
   if (!el) return;
   if (el.matches('#tabs button')) { if (!el.disabled) { tab = el.dataset.tab; render(); window.scrollTo(0, 0); } return; }
   var act = el.dataset.act, t = T();
+  if (handleSyncAction(act)) return;
   switch (act) {
     case 'create-t': {
       var f = {
@@ -1285,7 +1589,7 @@ document.addEventListener('click', function (ev) {
       download(t.name + '_개인기록.csv', ps2.join('\n'), 'text/csv;charset=utf-8'); break;
     }
     case 'wipe':
-      if (!confirm('이 브라우저의 모든 대회 기록을 지웁니다. 백업 파일을 받아 두셨나요?')) return;
+      if (!confirm((syncOn() ? '구글 시트에 연결되어 있어 연결된 모든 기기와 시트의 기록도 함께 지워집니다.\n' : '') + '모든 대회 기록을 지웁니다. 백업 파일을 받아 두셨나요?')) return;
       if (prompt('정말 지우려면 "삭제" 라고 입력하세요.') !== '삭제') return;
       db = { version: 1, tournaments: [], activeId: null, lastBackupAt: null }; save(); tab = 'setup'; render(); break;
   }
@@ -1352,6 +1656,7 @@ document.getElementById('matchDlg').addEventListener('close', function () {
 });
 
 render();
+startSync();
 })();
 </script>
 </body>
