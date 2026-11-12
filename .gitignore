@@ -4,3 +4,8 @@
 *.xlsx
 *.xls
 *.png
+
+# Apps Script 설정은 공용이라 올림. 선생님 개인 시트 연결 정보(.clasp.json)는 올리지 않음
+!apps-script/appsscript.json
+.clasp.json
+.clasprc.json
