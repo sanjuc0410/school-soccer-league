@@ -9,3 +9,6 @@
 !apps-script/appsscript.json
 .clasp.json
 .clasprc.json
+
+# 도름스체크 리포트
+.dorms-check/
