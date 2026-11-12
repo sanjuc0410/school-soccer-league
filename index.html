@@ -955,6 +955,22 @@ function createTournament(f) {
   }
   return t;
 }
+function isLeagueFormat(f) { return f === 'league' || f === 'league_ko'; }
+// 경기 방식 바꾸기. 일정이 있으면 풀리그 ↔ 리그 후 토너먼트만 허용(리그 경기·기록은 그대로).
+function changeFormat(t, v) {
+  if (!t.matches.length) { t.format = v; return true; }
+  if (!isLeagueFormat(t.format) || !isLeagueFormat(v)) return false;
+  if (v === 'league') {
+    var ko = t.matches.filter(function (m) { return m.stage === 'ko'; });
+    if (ko.length && !confirm('풀리그로 바꾸면 토너먼트 경기 ' + ko.length + '개와 그 기록이 지워집니다. 리그 경기 기록은 그대로입니다. 계속할까요?')) return false;
+    t.matches = t.matches.filter(function (m) { return m.stage !== 'ko'; });
+  } else if (Number(t.settings.koTeams) > t.teams.length) {
+    t.settings.koTeams = 2;
+  }
+  t.format = v;
+  if (v === 'league_ko') alert('리그 후 토너먼트로 바꿨습니다. 리그 경기와 기록은 그대로입니다.\n\n1. "토너먼트 진출 팀 수"를 정하세요. (리그 1·2위 결승만 하려면 2)\n2. [④ 경기 일정·기록] 탭에서 🏆 토너먼트 대진 만들기를 누르세요.');
+  return true;
+}
 function validateFormat(t) {
   var n = t.teams.length, S = t.settings;
   if (t.format === 'league_ko') {
@@ -1079,11 +1095,15 @@ function viewSetup(t) {
 
   if (t) {
     var S = t.settings, locked = t.matches.length > 0;
+    // 풀리그 ↔ 리그 후 토너먼트는 리그 일정이 같아서 일정이 있어도 바꿀 수 있다
+    var leagueSwitch = locked && isLeagueFormat(t.format);
+    var formatKeys = leagueSwitch ? ['league', 'league_ko'] : Object.keys(FORMATS);
     h += '<div class="card"><h2>현재 대회 설정 · ' + esc(t.name) + '</h2>';
-    if (locked) h += '<div class="note">일정이 만들어진 뒤에는 팀 수와 경기 방식을 바꿀 수 없습니다. 바꾸려면 [④ 경기] 탭에서 일정을 삭제하세요.</div>';
+    if (leagueSwitch) h += '<div class="note">일정이 만들어진 뒤에는 팀 수를 바꿀 수 없습니다. 경기 방식은 기록을 그대로 둔 채 <b>풀리그 ↔ 리그 후 토너먼트</b>로만 바꿀 수 있습니다. (리그 뒤 결승을 하려면 "리그 후 토너먼트"를 고르고 토너먼트 진출 팀 수를 2로 정하세요.)</div>';
+    else if (locked) h += '<div class="note">일정이 만들어진 뒤에는 팀 수와 경기 방식을 바꿀 수 없습니다. 바꾸려면 [④ 경기] 탭에서 일정을 삭제하세요.</div>';
     h += '<div class="grid">' +
       '<label class="f">대회 이름<input data-set="name" value="' + esc(t.name) + '"></label>' +
-      '<label class="f">경기 방식<select data-set="format"' + (locked ? ' disabled' : '') + '>' + Object.keys(FORMATS).map(function (k) { return '<option value="' + k + '"' + (k === t.format ? ' selected' : '') + '>' + FORMATS[k] + '</option>'; }).join('') + '</select></label>' +
+      '<label class="f">경기 방식<select data-set="format"' + (locked && !leagueSwitch ? ' disabled' : '') + '>' + formatKeys.map(function (k) { return '<option value="' + k + '"' + (k === t.format ? ' selected' : '') + '>' + FORMATS[k] + '</option>'; }).join('') + '</select></label>' +
       '<label class="f">팀 수<input type="number" min="2" max="16" data-set="teamCount" value="' + t.teams.length + '"' + (locked ? ' disabled' : '') + '></label>' +
       '<label class="f">리그 경기 횟수<select data-set="legs"' + (locked ? ' disabled' : '') + '><option value="1"' + (S.legs == 1 ? ' selected' : '') + '>팀끼리 1번씩</option><option value="2"' + (S.legs == 2 ? ' selected' : '') + '>팀끼리 2번씩</option></select></label>';
     if (t.format === 'league_ko') h += '<label class="f">토너먼트 진출 팀 수<select data-set="koTeams">' + [2, 4, 8].map(function (n) { return '<option' + (S.koTeams == n ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></label>';
@@ -2174,7 +2194,7 @@ document.addEventListener('change', function (ev) {
   if (el.dataset.set) {
     var k = el.dataset.set, v = el.value;
     if (k === 'name') t.name = v.trim() || t.name;
-    else if (k === 'format') { t.format = v; }
+    else if (k === 'format') { if (!changeFormat(t, v)) { render(); return; } }
     else if (k === 'teamCount') setTeamCount(t, Number(v));
     else if (k === 'third') t.settings.third = v === '1';
     else if (k === 'minutes') t.settings.minutes = v;
